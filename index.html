@@ -116,20 +116,30 @@
   // CONFIGURAÇÃO — preencha aqui
   // ============================================================
   //
-  // Para cada aba da sua planilha do Google Sheets (uma por setor):
-  //   Arquivo > Compartilhar > Publicar na Web > escolha a aba >
-  //   formato "Valores separados por vírgula (.csv)" > Publicar.
-  // Copie o link gerado e cole abaixo. A ordem aqui define a ordem
-  // dos cartões no painel.
+  // Use o link de EXPORTAÇÃO direta (mais rápido que "Publicar na
+  // Web", que fica em cache por vários minutos):
   //
+  //   https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/export?format=csv&gid=GID
+  //
+  // 1) Abra a planilha normalmente e copie o SPREADSHEET_ID da URL,
+  //    entre "/d/" e "/edit".
+  // 2) Compartilhar > Qualquer pessoa com o link > Leitor (obrigatório,
+  //    senão o link de exportação não abre sem login).
+  // 3) O GID de cada aba é o número depois de "gid=" quando você clica
+  //    na aba (aparece na URL). Os gids abaixo já são os das suas abas.
+  //
+  const SPREADSHEET_ID = "1CkRcn649mVP7POSoWzK8n_JiY_CKWN-IVyXBC_TOIZk";
+  function csvUrl(gid){
+    return `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${gid}`;
+  }
   const SECTOR_SHEETS = {
-    "COMUNICAÇÃO":      "https://docs.google.com/spreadsheets/d/e/2PACX-1vQD-gepsFA_kJi928cJGhCdku87Bhfbppc6vkGNOYaWRybGZa_nzkD18443QirU7vbw6YqfiEpQ36Nu/pub?gid=0&single=true&output=csv",
-    "ANALISE":          "https://docs.google.com/spreadsheets/d/e/2PACX-1vQD-gepsFA_kJi928cJGhCdku87Bhfbppc6vkGNOYaWRybGZa_nzkD18443QirU7vbw6YqfiEpQ36Nu/pub?gid=393471051&single=true&output=csv",
-    "COMPRA DE PEÇAS":  "https://docs.google.com/spreadsheets/d/e/2PACX-1vQD-gepsFA_kJi928cJGhCdku87Bhfbppc6vkGNOYaWRybGZa_nzkD18443QirU7vbw6YqfiEpQ36Nu/pub?gid=1322980367&single=true&output=csv",
-    "JURIDICO":         "https://docs.google.com/spreadsheets/d/e/2PACX-1vQD-gepsFA_kJi928cJGhCdku87Bhfbppc6vkGNOYaWRybGZa_nzkD18443QirU7vbw6YqfiEpQ36Nu/pub?gid=1980625187&single=true&output=csv"
+    "COMUNICAÇÃO":      csvUrl(0),
+    "ANALISE":          csvUrl(393471051),
+    "COMPRA DE PEÇAS":  csvUrl(1322980367),
+    "JURIDICO":         csvUrl(1980625187)
   };
 
-  const POLL_MS = 45000; // intervalo de atualização automática
+  const POLL_MS = 20000; // intervalo de atualização automática
 
   // Ordem de gravidade dos status conhecidos (o primeiro é o mais grave).
   const SEVERITY_ORDER = ["Expirado", "Crítico", "Alerta"];
