@@ -8,80 +8,103 @@
 <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg: #0A0F1A;
-    --panel: #121A2B;
-    --panel-border: #223047;
-    --text: #E9EEF7;
-    --muted: #7C8AA5;
-    --accent: #2FD6C0;
-    --amber: #F2A93B;
-    --red: #E85C5C;
-    --maroon: #8A2A3B;
-    --green: #33C17C;
+    --bg: #F3F5F9;
+    --panel: #FFFFFF;
+    --panel-border: #E3E8F0;
+    --text: #101828;
+    --muted: #66708A;
+    --accent: #0E9488;
+    --amber-bg: #FEF3E2; --amber-text: #B4560B; --amber-solid: #F2A93B;
+    --red-bg: #FDECEC;  --red-text: #C22A2A;  --red-solid: #E15353;
+    --maroon-bg: #F6E4E9; --maroon-text: #8A2A46; --maroon-solid: #A23A5B;
+    --green-bg: #E8F7EF; --green-text: #157347; --green-solid: #33C17C;
+    --gray-bg: #EEF1F6; --gray-text: #55607A; --gray-solid: #99A3B8;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;height:100%;}
   body{
-    background: radial-gradient(1200px 800px at 10% -10%, #10192B 0%, var(--bg) 55%);
+    background: var(--bg);
     color:var(--text);
     font-family:'Inter',system-ui,sans-serif;
     min-height:100vh;
-    overflow-x:hidden;
   }
-  ::selection{background:var(--accent);color:#04211C;}
+  ::selection{background:var(--accent);color:#fff;}
 
   .topbar{
     display:flex; align-items:center; justify-content:space-between;
-    padding: clamp(14px,2vh,26px) clamp(20px,3vw,48px);
+    padding: clamp(14px,2vh,24px) clamp(20px,3vw,48px);
     border-bottom:1px solid var(--panel-border);
-    background:linear-gradient(180deg, rgba(18,26,43,.9), rgba(18,26,43,.4));
+    background:#FFFFFF;
   }
   .brand{display:flex; align-items:baseline; gap:14px;}
-  .brand .dot{width:12px;height:12px;border-radius:50%; background:var(--accent); box-shadow:0 0 14px var(--accent); display:inline-block;}
-  .brand h1{font-family:'Big Shoulders Display',sans-serif; font-weight:800; letter-spacing:.5px; font-size:clamp(22px,2.6vw,34px); margin:0; text-transform:uppercase;}
+  .brand .dot{width:12px;height:12px;border-radius:50%; background:var(--accent); display:inline-block;}
+  .brand h1{font-family:'Big Shoulders Display',sans-serif; font-weight:800; letter-spacing:.5px; font-size:clamp(22px,2.6vw,34px); margin:0; text-transform:uppercase; color:#0B1220;}
   .brand span.sub{color:var(--muted); font-size:clamp(11px,1vw,14px); text-transform:uppercase; letter-spacing:2px;}
   .meta{display:flex; align-items:center; gap:clamp(16px,2.5vw,40px); font-family:'JetBrains Mono',monospace;}
-  .meta .clock{font-size:clamp(18px,2vw,28px); font-weight:600;}
+  .meta .clock{font-size:clamp(18px,2vw,26px); font-weight:600; color:#0B1220;}
   .meta .updated{font-size:clamp(11px,.9vw,13px); color:var(--muted); text-align:right;}
   .meta .updated b{color:var(--text); font-weight:600;}
 
-  main{padding: clamp(18px,2.4vh,36px) clamp(20px,3vw,48px);}
-  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap: clamp(14px,1.6vw,24px);}
+  main{padding: clamp(18px,2.4vh,32px) clamp(20px,3vw,48px);}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap: clamp(14px,1.6vw,22px); align-items:start;}
   .card{
     background:var(--panel); border:1px solid var(--panel-border); border-radius:16px;
-    padding:clamp(16px,1.8vw,26px); position:relative; overflow:hidden;
+    padding:clamp(16px,1.8vw,24px); position:relative; overflow:hidden;
     display:flex; flex-direction:column; gap:14px;
+    box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.04);
   }
-  .card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:6px; background:var(--sev-color, var(--muted));}
+  .card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:6px; background:var(--sev-solid, var(--gray-solid));}
   .card-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px;}
-  .card-head h2{font-family:'Big Shoulders Display',sans-serif; font-weight:700; text-transform:uppercase; font-size:clamp(19px,1.8vw,26px); margin:0; letter-spacing:.3px; line-height:1.05;}
-  .led{display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--sev-color, var(--muted)); white-space:nowrap;}
-  .led .bulb{width:9px;height:9px;border-radius:50%; background:var(--sev-color, var(--muted)); box-shadow:0 0 8px var(--sev-color, transparent);}
+  .card-head h2{font-family:'Big Shoulders Display',sans-serif; font-weight:700; text-transform:uppercase; font-size:clamp(19px,1.8vw,25px); margin:0; letter-spacing:.3px; line-height:1.05; color:#0B1220;}
+  .led{
+    display:flex; align-items:center; gap:6px;
+    font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600;
+    text-transform:uppercase; letter-spacing:.5px; white-space:nowrap;
+    padding:5px 10px; border-radius:999px;
+    background:var(--sev-bg, var(--gray-bg)); color:var(--sev-text, var(--gray-text));
+  }
+  .led .bulb{width:8px;height:8px;border-radius:50%; background:var(--sev-solid, var(--gray-solid));}
 
   .total-row{display:flex; align-items:baseline; gap:10px;}
-  .total-row .num{font-family:'Big Shoulders Display',sans-serif; font-weight:800; font-size:clamp(38px,4vw,54px); line-height:1;}
+  .total-row .num{font-family:'Big Shoulders Display',sans-serif; font-weight:800; font-size:clamp(36px,3.6vw,48px); line-height:1; color:#0B1220;}
   .total-row .lbl{color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:1.5px;}
 
   .badges{display:flex; flex-wrap:wrap; gap:8px;}
-  .badge{display:flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px; font-size:13px; font-weight:600; background:rgba(255,255,255,.04); border:1px solid var(--panel-border);}
-  .badge .sw{width:8px;height:8px;border-radius:50%;}
+  .badge{display:flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px; font-size:13px; font-weight:600;}
   .badge .n{font-family:'JetBrains Mono',monospace;}
 
-  .urgent{margin-top:2px; border-top:1px dashed var(--panel-border); padding-top:12px; display:flex; flex-direction:column; gap:7px;}
-  .urgent .u-title{font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin-bottom:2px;}
-  .u-item{display:flex; justify-content:space-between; gap:10px; font-family:'JetBrains Mono',monospace; font-size:12.5px; background:rgba(255,255,255,.02); border-radius:8px; padding:7px 10px;}
-  .u-item .proc{color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .u-item .st{font-weight:700; white-space:nowrap;}
-  .u-more{font-size:12px; color:var(--muted); padding:2px 2px 0;}
-  .ok-msg{display:flex; align-items:center; gap:8px; color:var(--green); font-weight:600; font-size:14px; padding-top:6px;}
-  .err-msg{color:var(--red); font-size:13px; padding-top:4px;}
+  .listwrap{border-top:1px solid var(--panel-border); padding-top:10px;}
+  .list-title{font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin-bottom:8px; display:flex; justify-content:space-between;}
+  .list{
+    display:flex; flex-direction:column; gap:6px;
+    max-height:420px; overflow-y:auto; padding-right:4px;
+  }
+  .item{
+    display:flex; align-items:center; gap:10px;
+    font-size:13px;
+    background:#FAFBFD; border:1px solid var(--panel-border);
+    border-radius:10px; padding:8px 10px;
+  }
+  .item .procwrap{flex:1; min-width:0;}
+  .item .proc{font-family:'JetBrains Mono',monospace; font-weight:600; color:#0B1220; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .item .sub{color:var(--muted); font-size:11.5px; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .item .st{
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.3px;
+    padding:4px 9px; border-radius:999px; white-space:nowrap;
+  }
+  .ok-msg{display:flex; align-items:center; gap:8px; color:var(--green-text); font-weight:600; font-size:14px;}
+  .err-msg{color:var(--red-text); font-size:13px;}
+  .empty-sector{color:var(--muted); font-size:13px;}
 
   .empty{text-align:center; padding: 10vh 20px; color:var(--muted);}
   .empty h3{color:var(--text); font-family:'Big Shoulders Display',sans-serif; font-size:28px; text-transform:uppercase; margin-bottom:8px;}
   .empty p{max-width:520px; margin:0 auto; line-height:1.6;}
-  .empty code{background:rgba(255,255,255,.06); padding:2px 6px; border-radius:5px; font-size:12px;}
+  .empty code{background:#EDF0F5; padding:2px 6px; border-radius:5px; font-size:12px;}
 
   footer.tvfoot{text-align:center; color:var(--muted); font-size:11.5px; padding:18px; letter-spacing:.5px;}
+
+  .list::-webkit-scrollbar{width:6px;}
+  .list::-webkit-scrollbar-thumb{background:#D7DEE9; border-radius:6px;}
 </style>
 </head>
 <body>
@@ -104,7 +127,7 @@
     <div id="gridArea" class="grid"></div>
     <div id="emptyArea" class="empty" style="display:none;">
       <h3>Painel ainda não configurado</h3>
-      <p>Abra o arquivo <code>painel_sgs_v2.html</code>, encontre <code>SECTOR_SHEETS</code> no início do script e cole ali o link publicado (CSV) de cada aba da sua planilha do Google Sheets.</p>
+      <p>Confira o <code>SPREADSHEET_ID</code> e os <code>gid</code> de cada aba no início do script.</p>
     </div>
   </main>
 
@@ -113,52 +136,40 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script>
   // ============================================================
-  // CONFIGURAÇÃO — preencha aqui
+  // CONFIGURAÇÃO
   // ============================================================
-  //
-  // Use o link de EXPORTAÇÃO direta (mais rápido que "Publicar na
-  // Web", que fica em cache por vários minutos):
-  //
-  //   https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/export?format=csv&gid=GID
-  //
-  // 1) Abra a planilha normalmente e copie o SPREADSHEET_ID da URL,
-  //    entre "/d/" e "/edit".
-  // 2) Compartilhar > Qualquer pessoa com o link > Leitor (obrigatório,
-  //    senão o link de exportação não abre sem login).
-  // 3) O GID de cada aba é o número depois de "gid=" quando você clica
-  //    na aba (aparece na URL). Os gids abaixo já são os das suas abas.
-  //
   const SPREADSHEET_ID = "1CkRcn649mVP7POSoWzK8n_JiY_CKWN-IVyXBC_TOIZk";
   function csvUrl(gid){
     return `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${gid}`;
   }
+  // A ordem aqui é a ordem fixa em que os setores aparecem no painel.
   const SECTOR_SHEETS = {
-    "COMUNICAÇÃO":      csvUrl(0),
-    "ANALISE":          csvUrl(393471051),
-    "COMPRA DE PEÇAS":  csvUrl(1322980367),
-    "JURIDICO":         csvUrl(1980625187)
+    "Comunicação":      csvUrl(0),
+    "Analise":          csvUrl(393471051),
+    "Compra de Peças":  csvUrl(1322980367),
+    "Juridico":         csvUrl(1980625187)
   };
 
-  const POLL_MS = 20000; // intervalo de atualização automática
+  const POLL_MS = 20000;
 
   // Ordem de gravidade dos status conhecidos (o primeiro é o mais grave).
   const SEVERITY_ORDER = ["Expirado", "Crítico", "Alerta"];
-  const STATUS_COLORS = {
-    "Expirado": "#8A2A3B",
-    "Crítico":  "#E85C5C",
-    "Alerta":   "#F2A93B"
+  const STATUS_STYLES = {
+    "Expirado": {bg:"var(--maroon-bg)", text:"var(--maroon-text)", solid:"var(--maroon-solid)"},
+    "Crítico":  {bg:"var(--red-bg)",    text:"var(--red-text)",    solid:"var(--red-solid)"},
+    "Alerta":   {bg:"var(--amber-bg)",  text:"var(--amber-text)",  solid:"var(--amber-solid)"}
   };
-  const DEFAULT_COLOR = "#7C8AA5";
-  const OK_COLOR = "#33C17C";
+  const DEFAULT_STYLE = {bg:"var(--gray-bg)", text:"var(--gray-text)", solid:"var(--gray-solid)"};
+  const OK_STYLE = {bg:"var(--green-bg)", text:"var(--green-text)", solid:"var(--green-solid)"};
   // ============================================================
 
-  function colorForStatus(status){ return STATUS_COLORS[status] || DEFAULT_COLOR; }
-  function worstStatusColor(statusCounts){
-    for (const s of SEVERITY_ORDER){ if (statusCounts[s] > 0) return colorForStatus(s); }
+  function styleForStatus(status){ return STATUS_STYLES[status] || DEFAULT_STYLE; }
+  function worstStyle(statusCounts){
+    for (const s of SEVERITY_ORDER){ if (statusCounts[s] > 0) return styleForStatus(s); }
     const keys = Object.keys(statusCounts).filter(k => statusCounts[k] > 0);
-    return keys.length ? DEFAULT_COLOR : OK_COLOR;
+    return keys.length ? DEFAULT_STYLE : OK_STYLE;
   }
-  function worstStatusLabel(statusCounts){
+  function worstLabel(statusCounts){
     for (const s of SEVERITY_ORDER){ if (statusCounts[s] > 0) return s.toUpperCase(); }
     const keys = Object.keys(statusCounts).filter(k => statusCounts[k] > 0);
     return keys.length ? keys[0].toUpperCase() : "TUDO EM DIA";
@@ -167,7 +178,7 @@
     return String(str ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   }
 
-  // ---------- parsing das linhas (mesma lógica de blocos lado a lado) ----------
+  // ---------- parsing das linhas (suporta blocos lado a lado) ----------
   function findHeaderRowIndex(rows){
     for (let i=0; i<Math.min(5, rows.length); i++){
       if (rows[i] && rows[i].includes("Processo")) return i;
@@ -205,28 +216,26 @@
     return items;
   }
 
-  // ---------- busca dos dados publicados no Google Sheets ----------
+  // ---------- busca dos dados ----------
   function fetchCsv(url){
     return new Promise((resolve, reject) => {
       const bustUrl = url + (url.includes('?') ? '&' : '?') + '_=' + Date.now();
       fetch(bustUrl)
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-        .then(text => {
-          const parsed = Papa.parse(text, {skipEmptyLines: true});
-          resolve(parsed.data);
-        })
+        .then(text => { resolve(Papa.parse(text, {skipEmptyLines: true}).data); })
         .catch(reject);
     });
   }
 
   async function buildSummary(){
     const sectors = {};
-    const entries = Object.entries(SECTOR_SHEETS);
-    await Promise.all(entries.map(async ([sector, url]) => {
-      if (!url || url.startsWith('COLE_AQUI')){
-        sectors[sector] = { total:0, statusCounts:{}, items:[], error: 'not_configured' };
-        return;
+    for (const [sector, url] of Object.entries(SECTOR_SHEETS)){
+      if (!url || url.includes('COLE_AQUI')){
+        sectors[sector] = { total:0, statusCounts:{}, items:[], error:'not_configured' };
       }
+    }
+    await Promise.all(Object.entries(SECTOR_SHEETS).map(async ([sector, url]) => {
+      if (!url || url.includes('COLE_AQUI')) return;
       try{
         const rows = await fetchCsv(url);
         const items = parseRowsToItems(rows);
@@ -234,7 +243,7 @@
         items.forEach(it => { statusCounts[it.status] = (statusCounts[it.status]||0)+1; });
         sectors[sector] = { total: items.length, statusCounts, items };
       }catch(err){
-        sectors[sector] = { total:0, statusCounts:{}, items:[], error: 'fetch_failed' };
+        sectors[sector] = { total:0, statusCounts:{}, items:[], error:'fetch_failed' };
       }
     }));
     return { updatedAt: new Date().toISOString(), sectors };
@@ -251,8 +260,8 @@
     const emptyArea = document.getElementById('emptyArea');
     const updatedAt = document.getElementById('updatedAt');
 
-    const configuredSectors = Object.entries(summary.sectors).filter(([,d]) => d.error !== 'not_configured');
-    if (configuredSectors.length === 0){
+    const configured = Object.entries(summary.sectors).filter(([,d]) => d.error !== 'not_configured');
+    if (configured.length === 0){
       gridArea.style.display = 'none';
       emptyArea.style.display = 'block';
       updatedAt.textContent = '—';
@@ -264,56 +273,72 @@
     updatedAt.textContent = fmtDateTime(summary.updatedAt);
 
     let html = '';
+    // Object.entries preserva a ordem de inserção de SECTOR_SHEETS, então
+    // os setores sempre aparecem na mesma ordem configurada ali em cima.
     for (const [sector, data] of Object.entries(summary.sectors)){
       if (data.error === 'not_configured') continue;
 
       if (data.error === 'fetch_failed'){
         html += `
-          <div class="card" style="--sev-color:${DEFAULT_COLOR}">
+          <div class="card" style="--sev-solid:var(--gray-solid)">
             <div class="card-head"><h2>${escapeHtml(sector)}</h2></div>
             <div class="err-msg">Não consegui carregar os dados desta aba agora. Vou tentar de novo automaticamente.</div>
           </div>`;
         continue;
       }
 
-      const sevColor = worstStatusColor(data.statusCounts);
-      const sevLabel = worstStatusLabel(data.statusCounts);
-      const badges = Object.entries(data.statusCounts).sort((a,b)=>b[1]-a[1]).map(([status,n]) => `
-        <div class="badge"><span class="sw" style="background:${colorForStatus(status)}"></span>${escapeHtml(status)} <span class="n">${n}</span></div>`).join('');
+      const sev = worstStyle(data.statusCounts);
+      const sevLabel = worstLabel(data.statusCounts);
 
-      const urgentItems = data.items
-        .filter(it => SEVERITY_ORDER.slice(0,2).includes(it.status))
-        .sort((a,b) => SEVERITY_ORDER.indexOf(a.status) - SEVERITY_ORDER.indexOf(b.status));
+      const badges = Object.entries(data.statusCounts).sort((a,b)=>b[1]-a[1]).map(([status,n]) => {
+        const st = styleForStatus(status);
+        return `<div class="badge" style="background:${st.bg};color:${st.text}">${escapeHtml(status)} <span class="n">${n}</span></div>`;
+      }).join('');
 
-      let urgentHtml = '';
-      if (urgentItems.length > 0){
-        const shown = urgentItems.slice(0,6);
-        urgentHtml = `<div class="urgent">
-          <div class="u-title">Itens que precisam de atenção</div>
-          ${shown.map(it => `<div class="u-item"><span class="proc">${escapeHtml(it.processo)} — ${escapeHtml(it.associacao||'')}</span><span class="st" style="color:${colorForStatus(it.status)}">${escapeHtml(it.status)}</span></div>`).join('')}
-          ${urgentItems.length > shown.length ? `<div class="u-more">+ ${urgentItems.length - shown.length} outros</div>` : ''}
+      const allItems = [...data.items].sort((a,b) => {
+        const ai = SEVERITY_ORDER.includes(a.status) ? SEVERITY_ORDER.indexOf(a.status) : SEVERITY_ORDER.length;
+        const bi = SEVERITY_ORDER.includes(b.status) ? SEVERITY_ORDER.indexOf(b.status) : SEVERITY_ORDER.length;
+        return ai - bi;
+      });
+
+      let listHtml = '';
+      if (allItems.length > 0){
+        listHtml = `<div class="listwrap">
+          <div class="list-title"><span>Todos os protocolos</span><span>${allItems.length}</span></div>
+          <div class="list">
+            ${allItems.map(it => {
+              const st = styleForStatus(it.status);
+              const subParts = [it.associacao, it.etapa].filter(Boolean).join(' · ');
+              return `<div class="item">
+                <div class="procwrap">
+                  <span class="proc">${escapeHtml(it.processo)}</span>
+                  ${subParts ? `<span class="sub">${escapeHtml(subParts)}</span>` : ''}
+                </div>
+                <span class="st" style="background:${st.bg};color:${st.text}">${escapeHtml(it.status)}</span>
+              </div>`;
+            }).join('')}
+          </div>
         </div>`;
-      } else if (data.total > 0){
-        urgentHtml = `<div class="ok-msg">✓ Nenhum item crítico ou expirado</div>`;
+      } else {
+        listHtml = `<div class="empty-sector">Sem demandas hoje.</div>`;
       }
 
       html += `
-        <div class="card" style="--sev-color:${sevColor}">
+        <div class="card" style="--sev-solid:${sev.solid};--sev-bg:${sev.bg};--sev-text:${sev.text}">
           <div class="card-head">
             <h2>${escapeHtml(sector)}</h2>
             <div class="led"><span class="bulb"></span>${sevLabel}</div>
           </div>
           <div class="total-row"><span class="num">${data.total}</span><span class="lbl">demanda${data.total===1?'':'s'} hoje</span></div>
-          <div class="badges">${badges || '<span style="color:var(--muted);font-size:13px;">Sem demandas</span>'}</div>
-          ${urgentHtml}
+          <div class="badges">${badges}</div>
+          ${listHtml}
         </div>`;
     }
     gridArea.innerHTML = html;
   }
 
   async function refresh(){
-    const summary = await buildSummary();
-    renderDashboard(summary);
+    renderDashboard(await buildSummary());
   }
 
   function tickClock(){
