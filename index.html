@@ -189,7 +189,10 @@
     box-shadow: 0 1px 2px rgba(16,24,40,.04);
   }
   .chart-title{font-size:11px; text-transform:uppercase; letter-spacing:1.4px; color:var(--muted); margin-bottom:14px;}
-  .chart-row{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .chart-row{display:flex; align-items:center; gap:10px; margin-bottom:10px; cursor:pointer; padding:4px 6px; margin:0 -6px 6px; border-radius:8px; transition:.12s;}
+  .chart-row:hover{background:var(--gray-bg);}
+  .chart-row.active .chart-label{color:var(--accent);}
+  .chart-row.active .chart-bar{background:var(--headbar);}
   .chart-row .chart-label{width:38%; font-size:12.5px; color:var(--text); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .chart-bar-wrap{flex:1; background:var(--gray-bg); border-radius:6px; height:14px; overflow:hidden;}
   .chart-bar{height:100%; background:var(--accent); border-radius:6px; transition:width .3s;}
@@ -295,8 +298,10 @@
   const SECTOR_SHEETS = {
     "Comunicação":      csvUrl(0),
     "Analise":          csvUrl(393471051),
-    "Compra de Peças":  csvUrl(1322980367),
-    "Juridico":         csvUrl(1980625187)
+    "Peças":            csvUrl(1322980367),
+    "Juridico":         csvUrl(1980625187),
+    "Regulação":        csvUrl(847417293),
+    "Auditoria":        csvUrl(382210428)
   };
 
   const POLL_MS = 20000;
@@ -322,6 +327,7 @@
   let lastSummary = null;
   let assocFilter = 'all';               // 'all' | 'mobili' | 'others'
   const sectorStatusFilter = {};         // sector -> status string | null
+  const sectorEtapaFilter = {};          // sector -> etapa string | null
   let itemIdCounter = 0;
   let itemsById = {};                    // id -> {item, sector} para abrir o modal de detalhes
 
@@ -338,6 +344,27 @@
   }
   function escapeHtml(str){
     return String(str ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+  function parseFlexDate(str){
+    if (!str) return null;
+    const s = String(str).trim();
+    let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if (m){
+      let [, d, mo, y] = m;
+      if (y.length === 2) y = '20' + y;
+      const dt = new Date(Number(y), Number(mo)-1, Number(d));
+      return isNaN(dt) ? null : dt;
+    }
+    m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m){
+      const [, y, mo, d] = m;
+      const dt = new Date(Number(y), Number(mo)-1, Number(d));
+      return isNaN(dt) ? null : dt;
+    }
+    return null;
+  }
+  function isSameDay(a, b){
+    return a && b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
   }
 
   // ---------- parsing das linhas (suporta blocos lado a lado) ----------
@@ -363,6 +390,7 @@
       const assocI = local.indexOf("Associação");
       const etapaI = local.indexOf("Etapa");
       const statusI = local.indexOf("Status no SGS");
+      const prazoI = local.indexOf("Prazo");
       // qualquer outra coluna do bloco vira um campo extra, exibido no
       // quadro de detalhes ao clicar no protocolo (ex: Observação,
       // Vencimento, Veículo, Oficina, Etapa de Compra...)
@@ -383,6 +411,7 @@
           associacao: assocI >= 0 ? row[block.start + assocI] : null,
           etapa: etapaI >= 0 ? row[block.start + etapaI] : null,
           status: statusI >= 0 ? (row[block.start + statusI] || "Sem status") : "Sem status",
+          prazo: prazoI >= 0 ? row[block.start + prazoI] : null,
           extra
         });
       }
@@ -543,15 +572,28 @@
     </div>`;
   }
 
-  function buildEtapaChart(items){
+  function listSectionHtml(title, items){
+    if (items.length === 0){
+      return `<div class="listwrap">
+        <div class="list-title"><span>${escapeHtml(title)}</span><span>0</span></div>
+        <div class="empty-sector">Nenhum protocolo aqui.</div>
+      </div>`;
+    }
+    return `<div class="listwrap">
+      <div class="list-title"><span>${escapeHtml(title)}</span><span>${items.length}</span></div>
+      <div class="list">${items.map(it => itemRowHtml(it)).join('')}</div>
+    </div>`;
+  }
+
+  function buildEtapaChart(items, sector, activeEtapa){
     const counts = {};
     items.forEach(it => { const k = (it.etapa || '').trim() || 'Sem etapa'; counts[k] = (counts[k]||0)+1; });
     const entries = Object.entries(counts).sort((a,b) => b[1]-a[1]);
     const max = entries.length ? entries[0][1] : 0;
     return `<div class="chart-card">
-      <div class="chart-title">Tarefas por etapa</div>
+      <div class="chart-title">Tarefas por etapa &middot; clique para filtrar</div>
       ${entries.length ? entries.map(([label,n]) => `
-        <div class="chart-row">
+        <div class="chart-row ${activeEtapa===label?'active':''}" onclick="toggleEtapaFilter('${sector.replace(/'/g,"\\'")}','${label.replace(/'/g,"\\'")}')">
           <div class="chart-label" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
           <div class="chart-bar-wrap"><div class="chart-bar" style="width:${max ? (n/max*100) : 0}%"></div></div>
           <div class="chart-value">${n}</div>
@@ -580,6 +622,7 @@
     const sev = worstStyle(statusCounts);
     const sevLabel = worstLabel(statusCounts);
     const activeStatus = sectorStatusFilter[sector] || null;
+    const activeEtapa = sectorEtapaFilter[sector] || null;
 
     const badges = Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([status,n]) => {
       const st = styleForStatus(status);
@@ -587,24 +630,46 @@
       return `<div class="badge ${isActive?'active':''}" style="--b-bg:${st.bg};--b-text:${st.text}" onclick="toggleStatusFilter('${sector.replace(/'/g,"\\'")}','${status.replace(/'/g,"\\'")}')">${escapeHtml(status)} <span class="n">${n}</span></div>`;
     }).join('');
 
-    const displayItems = (activeStatus ? assocItems.filter(it => it.status === activeStatus) : assocItems)
-      .slice()
+    const displayItems = assocItems
+      .filter(it => activeStatus ? it.status === activeStatus : true)
+      .filter(it => activeEtapa ? ((it.etapa||'').trim() || 'Sem etapa') === activeEtapa : true)
       .sort((a,b) => {
         const ai = SEVERITY_ORDER.includes(a.status) ? SEVERITY_ORDER.indexOf(a.status) : SEVERITY_ORDER.length;
         const bi = SEVERITY_ORDER.includes(b.status) ? SEVERITY_ORDER.indexOf(b.status) : SEVERITY_ORDER.length;
         return ai - bi;
       });
 
-    const listHtml = assocItems.length > 0 ? `
-      <div class="card sector-list">
-        <div class="listwrap" style="border-top:none; padding-top:0;">
-          <div class="list-title">
-            <span>${activeStatus ? escapeHtml(activeStatus) : 'Todos os protocolos'}</span>
-            <span>${activeStatus ? `${displayItems.length} de ${assocItems.length} &nbsp;·&nbsp; <span class="clear" onclick="toggleStatusFilter('${sector.replace(/'/g,"\\'")}','${activeStatus.replace(/'/g,"\\'")}')">limpar</span>` : assocItems.length}</span>
-          </div>
-          <div class="list">${displayItems.map(it => itemRowHtml(it)).join('')}</div>
-        </div>
-      </div>` : `<div class="card"><div class="empty-sector">Sem demandas ${assocFilter !== 'all' ? 'para esse filtro' : 'hoje'}.</div></div>`;
+    const activeLabelParts = [activeStatus, activeEtapa].filter(Boolean);
+    const hasActiveFilter = activeLabelParts.length > 0;
+    const clearBoth = () => { sectorStatusFilter[sector] = null; sectorEtapaFilter[sector] = null; renderCurrentRoute(); };
+    window.__clearSectorFilters = clearBoth;
+
+    const filterHeaderHtml = hasActiveFilter
+      ? `<div class="list-title" style="margin-bottom:14px;"><span>${escapeHtml(activeLabelParts.join(' + '))}</span><span>${displayItems.length} de ${assocItems.length} &nbsp;·&nbsp; <span class="clear" onclick="window.__clearSectorFilters()">limpar</span></span></div>`
+      : '';
+
+    const hasPrazoColumn = assocItems.some(it => it.prazo);
+    let listHtml;
+    if (assocItems.length === 0){
+      listHtml = `<div class="card"><div class="empty-sector">Sem demandas ${assocFilter !== 'all' ? 'para esse filtro' : 'hoje'}.</div></div>`;
+    } else if (hasPrazoColumn){
+      const today = new Date();
+      const todayItems = displayItems.filter(it => isSameDay(parseFlexDate(it.prazo), today));
+      const otherItems = displayItems.filter(it => !isSameDay(parseFlexDate(it.prazo), today));
+      listHtml = `<div class="card sector-list">
+        ${filterHeaderHtml}
+        ${listSectionHtml('Tarefas de hoje (prazo hoje)', todayItems)}
+        ${listSectionHtml('Tarefas a fazer (outros prazos)', otherItems)}
+      </div>`;
+    } else {
+      const bodyHtml = hasActiveFilter
+        ? `<div class="list">${displayItems.map(it => itemRowHtml(it)).join('')}</div>`
+        : listSectionHtml('Todos os protocolos', displayItems);
+      listHtml = `<div class="card sector-list">
+        ${filterHeaderHtml}
+        ${bodyHtml}
+      </div>`;
+    }
 
     mainContent.innerHTML = `
       <div class="sector-header" style="--sev-solid:${sev.solid}">
@@ -615,9 +680,14 @@
         <div class="badges">${badges || '<span style="color:var(--muted);font-size:13px;">Sem demandas</span>'}</div>
       </div>
       <div class="sector-layout">
-        <div>${buildEtapaChart(assocItems)}</div>
+        <div>${buildEtapaChart(assocItems, sector, activeEtapa)}</div>
         <div>${listHtml}</div>
       </div>`;
+  }
+
+  function toggleEtapaFilter(sector, etapa){
+    sectorEtapaFilter[sector] = (sectorEtapaFilter[sector] === etapa) ? null : etapa;
+    renderCurrentRoute();
   }
 
   // ---------- rotas / menu lateral ----------
