@@ -28,6 +28,48 @@
   body{background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; min-height:100vh;}
   ::selection{background:var(--accent); color:#fff;}
 
+  .app-shell{display:flex; min-height:100vh;}
+
+  .sidebar{
+    width:240px; flex:none; background:var(--headbar); color:#fff;
+    display:flex; flex-direction:column;
+    transition:width .18s ease, padding .18s ease;
+    overflow:hidden;
+  }
+  .sidebar.collapsed{width:0; padding:0;}
+  .sidebar-top{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 18px; border-bottom:1px solid rgba(255,255,255,.1);
+  }
+  .sidebar-top .stitle{font-family:'Big Shoulders Display',sans-serif; font-weight:700; text-transform:uppercase; letter-spacing:.5px; font-size:16px; white-space:nowrap;}
+  .sidebar-toggle{
+    background:rgba(255,255,255,.08); border:none; color:#fff;
+    width:28px; height:28px; border-radius:8px; cursor:pointer; flex:none;
+    font-size:14px; display:flex; align-items:center; justify-content:center;
+  }
+  .sidebar-toggle:hover{background:rgba(255,255,255,.18);}
+  .sidebar-nav{display:flex; flex-direction:column; padding:14px 10px; gap:3px;}
+  .sidebar-nav a{
+    display:flex; align-items:center; gap:10px;
+    color:#C6C9E4; text-decoration:none; font-size:14px; font-weight:600;
+    padding:11px 14px; border-radius:10px; white-space:nowrap;
+    border-left:3px solid transparent;
+  }
+  .sidebar-nav a:hover{background:rgba(255,255,255,.06); color:#fff;}
+  .sidebar-nav a.active{background:rgba(249,95,69,.15); color:#fff; border-left-color:var(--accent);}
+  .sidebar-nav .navdot{width:6px;height:6px;border-radius:50%; background:currentColor; opacity:.6; flex:none;}
+  .sidebar-nav .divider{height:1px; background:rgba(255,255,255,.1); margin:10px 6px;}
+
+  .content-shell{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .sidebar-open-btn{
+    position:fixed; top:16px; left:16px; z-index:40;
+    width:36px; height:36px; border-radius:10px; border:none;
+    background:var(--headbar); color:#fff; cursor:pointer; font-size:15px;
+    display:none; align-items:center; justify-content:center;
+    box-shadow:0 4px 10px rgba(0,0,0,.2);
+  }
+  .sidebar-open-btn.show{display:flex;}
+
   .topbar{
     display:flex; align-items:center; justify-content:space-between;
     padding: clamp(14px,2vh,22px) clamp(20px,3vw,48px);
@@ -129,6 +171,32 @@
   .empty p{max-width:520px; margin:0 auto; line-height:1.6;}
   .empty code{background:#E3E6EC; padding:2px 6px; border-radius:5px; font-size:12px;}
 
+  /* ---------- página de setor ---------- */
+  .sector-header{
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:14px;
+    padding:clamp(18px,2.2vw,28px); margin-bottom:clamp(14px,1.6vw,20px);
+    box-shadow: 0 1px 2px rgba(16,24,40,.04);
+    position:relative; overflow:hidden;
+  }
+  .sector-header::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--sev-solid, var(--gray-solid));}
+  .sector-header h2{font-family:'Big Shoulders Display',sans-serif; font-weight:800; text-transform:uppercase; font-size:clamp(26px,3vw,38px); margin:0 0 12px; color:#0E1116;}
+  .sector-layout{display:grid; grid-template-columns:minmax(280px,1fr) minmax(280px,1.4fr); gap:clamp(14px,1.6vw,20px); align-items:start;}
+  @media (max-width: 860px){ .sector-layout{grid-template-columns:1fr;} }
+
+  .chart-card{
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:14px;
+    padding:clamp(16px,1.8vw,22px);
+    box-shadow: 0 1px 2px rgba(16,24,40,.04);
+  }
+  .chart-title{font-size:11px; text-transform:uppercase; letter-spacing:1.4px; color:var(--muted); margin-bottom:14px;}
+  .chart-row{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .chart-row .chart-label{width:38%; font-size:12.5px; color:var(--text); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .chart-bar-wrap{flex:1; background:var(--gray-bg); border-radius:6px; height:14px; overflow:hidden;}
+  .chart-bar{height:100%; background:var(--accent); border-radius:6px; transition:width .3s;}
+  .chart-value{width:28px; text-align:right; font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--muted);}
+
+  .sector-list .list{max-height:560px;}
+
   footer.tvfoot{text-align:center; color:var(--muted); font-size:11px; padding:16px; letter-spacing:.4px;}
   .list::-webkit-scrollbar{width:6px;}
   .list::-webkit-scrollbar-thumb{background:#D2D7E0; border-radius:6px;}
@@ -164,43 +232,51 @@
 </head>
 <body>
 
-  <div class="topbar">
-    <div class="brand">
-      <span class="dot"></span>
-      <div>
-        <h1>Painel de Demandas</h1>
-        <div class="sub">Acompanhamento SGS &middot; por setor</div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-top">
+        <span class="stitle">Menu</span>
+        <button class="sidebar-toggle" id="sidebarToggle" title="Esconder menu">&#10094;</button>
       </div>
-    </div>
-    <div class="meta">
-      <div class="clock" id="clock">--:--:--</div>
-      <div class="updated">Última atualização<br><b id="updatedAt">—</b></div>
+      <nav class="sidebar-nav" id="sidebarNav"></nav>
+    </aside>
+
+    <div class="content-shell">
+      <button class="sidebar-open-btn" id="sidebarOpenBtn" title="Mostrar menu">&#9776;</button>
+
+      <div class="topbar">
+        <div class="brand">
+          <span class="dot"></span>
+          <div>
+            <h1>Painel de Demandas</h1>
+            <div class="sub">Acompanhamento SGS &middot; por setor</div>
+          </div>
+        </div>
+        <div class="meta">
+          <div class="clock" id="clock">--:--:--</div>
+          <div class="updated">Última atualização<br><b id="updatedAt">—</b></div>
+        </div>
+      </div>
+
+      <div class="filterbar">
+        <span class="flabel">Associação</span>
+        <div class="seg" id="assocSeg">
+          <button data-v="all" class="active">Todas</button>
+          <button data-v="mobili">Mobili</button>
+          <button data-v="others">Outras Associações</button>
+        </div>
+        <div class="checklist" id="reportChecklist" style="margin-left:auto;">
+          <span class="flabel">Checklist do dia</span>
+          <div class="check-item" data-target="09:20"><span class="check-icon"></span>Relatório Manhã (09h20)</div>
+          <div class="check-item" data-target="14:00"><span class="check-icon"></span>Relatório Tarde (14h00)</div>
+        </div>
+      </div>
+
+      <main id="mainContent"></main>
+
+      <footer class="tvfoot">Os dados vêm direto da planilha do Google. Para atualizar, edite a planilha — o painel lê os dados novos automaticamente.</footer>
     </div>
   </div>
-
-  <div class="filterbar">
-    <span class="flabel">Associação</span>
-    <div class="seg" id="assocSeg">
-      <button data-v="all" class="active">Todas</button>
-      <button data-v="mobili">Mobili</button>
-      <button data-v="others">Outras Associações</button>
-    </div>
-    <div class="checklist" id="reportChecklist" style="margin-left:auto;">
-      <span class="flabel">Checklist do dia</span>
-      <div class="check-item" data-target="09:20"><span class="check-icon"></span>Relatório Manhã (09h20)</div>
-      <div class="check-item" data-target="14:00"><span class="check-icon"></span>Relatório Tarde (14h00)</div>
-    </div>
-  </div>
-
-  <main>
-    <div id="gridArea" class="grid"></div>
-    <div id="emptyArea" class="empty" style="display:none;">
-      <h3>Painel ainda não configurado</h3>
-      <p>Confira o <code>SPREADSHEET_ID</code> e os <code>gid</code> de cada aba no início do script.</p>
-    </div>
-  </main>
-
-  <footer class="tvfoot">Os dados vêm direto da planilha do Google. Para atualizar, edite a planilha — o painel lê os dados novos automaticamente.</footer>
 
   <div class="modal-overlay hidden" id="detailOverlay">
     <div class="modal-box" id="detailBox"></div>
@@ -364,7 +440,7 @@
 
   function toggleStatusFilter(sector, status){
     sectorStatusFilter[sector] = (sectorStatusFilter[sector] === status) ? null : status;
-    render();
+    renderCurrentRoute();
   }
 
   // ---------- renderização ----------
@@ -373,25 +449,21 @@
     return d.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
   }
 
-  function render(){
-    if (!lastSummary) return;
-    const gridArea = document.getElementById('gridArea');
-    const emptyArea = document.getElementById('emptyArea');
-    const updatedAt = document.getElementById('updatedAt');
+  function renderHome(){
+    const mainContent = document.getElementById('mainContent');
+    if (!lastSummary) { mainContent.innerHTML = ''; return; }
 
     const configured = Object.entries(lastSummary.sectors).filter(([,d]) => d.error !== 'not_configured');
     if (configured.length === 0){
-      gridArea.style.display = 'none';
-      emptyArea.style.display = 'block';
-      updatedAt.textContent = '—';
+      mainContent.innerHTML = `
+        <div class="empty">
+          <h3>Painel ainda não configurado</h3>
+          <p>Confira o <code>SPREADSHEET_ID</code> e os <code>gid</code> de cada aba no início do script.</p>
+        </div>`;
       return;
     }
 
-    gridArea.style.display = 'grid';
-    emptyArea.style.display = 'none';
-    updatedAt.textContent = fmtDateTime(lastSummary.updatedAt);
-
-    let html = '';
+    let html = '<div class="grid">';
     for (const [sector, data] of Object.entries(lastSummary.sectors)){
       if (data.error === 'not_configured') continue;
 
@@ -437,17 +509,7 @@
             <span>${activeStatus ? `${displayItems.length} de ${assocItems.length} &nbsp;·&nbsp; <span class="clear" onclick="toggleStatusFilter('${sector.replace(/'/g,"\\'")}','${activeStatus.replace(/'/g,"\\'")}')">limpar</span>` : assocItems.length}</span>
           </div>
           <div class="list">
-            ${displayItems.map(it => {
-              const st = styleForStatus(it.status);
-              const subParts = [it.associacao, it.etapa].filter(Boolean).join(' · ');
-              return `<div class="item" onclick="openDetail('${it.id}')">
-                <div class="procwrap">
-                  <span class="proc">${escapeHtml(it.processo)}</span>
-                  ${subParts ? `<span class="sub">${escapeHtml(subParts)}</span>` : ''}
-                </div>
-                <span class="st" style="background:${st.bg};color:${st.text}">${escapeHtml(it.status)}</span>
-              </div>`;
-            }).join('')}
+            ${displayItems.map(it => itemRowHtml(it)).join('')}
           </div>
         </div>`;
       } else {
@@ -465,12 +527,134 @@
           ${listHtml}
         </div>`;
     }
-    gridArea.innerHTML = html;
+    html += '</div>';
+    mainContent.innerHTML = html;
   }
+
+  function itemRowHtml(it){
+    const st = styleForStatus(it.status);
+    const subParts = [it.associacao, it.etapa].filter(Boolean).join(' · ');
+    return `<div class="item" onclick="openDetail('${it.id}')">
+      <div class="procwrap">
+        <span class="proc">${escapeHtml(it.processo)}</span>
+        ${subParts ? `<span class="sub">${escapeHtml(subParts)}</span>` : ''}
+      </div>
+      <span class="st" style="background:${st.bg};color:${st.text}">${escapeHtml(it.status)}</span>
+    </div>`;
+  }
+
+  function buildEtapaChart(items){
+    const counts = {};
+    items.forEach(it => { const k = (it.etapa || '').trim() || 'Sem etapa'; counts[k] = (counts[k]||0)+1; });
+    const entries = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+    const max = entries.length ? entries[0][1] : 0;
+    return `<div class="chart-card">
+      <div class="chart-title">Tarefas por etapa</div>
+      ${entries.length ? entries.map(([label,n]) => `
+        <div class="chart-row">
+          <div class="chart-label" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
+          <div class="chart-bar-wrap"><div class="chart-bar" style="width:${max ? (n/max*100) : 0}%"></div></div>
+          <div class="chart-value">${n}</div>
+        </div>`).join('') : '<div class="empty-sector">Sem dados para exibir.</div>'}
+    </div>`;
+  }
+
+  function renderSectorPage(sector){
+    const mainContent = document.getElementById('mainContent');
+    if (!lastSummary) { mainContent.innerHTML = ''; return; }
+    const data = lastSummary.sectors[sector];
+
+    if (!data || data.error === 'not_configured'){
+      mainContent.innerHTML = `<div class="empty"><h3>Setor não encontrado</h3><p>Confira se "${escapeHtml(sector)}" existe em <code>SECTOR_SHEETS</code>.</p></div>`;
+      return;
+    }
+    if (data.error === 'fetch_failed'){
+      mainContent.innerHTML = `<div class="sector-header"><h2>${escapeHtml(sector)}</h2><div class="err-msg">Não consegui carregar os dados desta aba agora. Vou tentar de novo automaticamente.</div></div>`;
+      return;
+    }
+
+    const assocItems = data.items.filter(matchesAssoc);
+    const statusCounts = {};
+    assocItems.forEach(it => { statusCounts[it.status] = (statusCounts[it.status]||0)+1; });
+    const total = assocItems.length;
+    const sev = worstStyle(statusCounts);
+    const sevLabel = worstLabel(statusCounts);
+    const activeStatus = sectorStatusFilter[sector] || null;
+
+    const badges = Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([status,n]) => {
+      const st = styleForStatus(status);
+      const isActive = activeStatus === status;
+      return `<div class="badge ${isActive?'active':''}" style="--b-bg:${st.bg};--b-text:${st.text}" onclick="toggleStatusFilter('${sector.replace(/'/g,"\\'")}','${status.replace(/'/g,"\\'")}')">${escapeHtml(status)} <span class="n">${n}</span></div>`;
+    }).join('');
+
+    const displayItems = (activeStatus ? assocItems.filter(it => it.status === activeStatus) : assocItems)
+      .slice()
+      .sort((a,b) => {
+        const ai = SEVERITY_ORDER.includes(a.status) ? SEVERITY_ORDER.indexOf(a.status) : SEVERITY_ORDER.length;
+        const bi = SEVERITY_ORDER.includes(b.status) ? SEVERITY_ORDER.indexOf(b.status) : SEVERITY_ORDER.length;
+        return ai - bi;
+      });
+
+    const listHtml = assocItems.length > 0 ? `
+      <div class="card sector-list">
+        <div class="listwrap" style="border-top:none; padding-top:0;">
+          <div class="list-title">
+            <span>${activeStatus ? escapeHtml(activeStatus) : 'Todos os protocolos'}</span>
+            <span>${activeStatus ? `${displayItems.length} de ${assocItems.length} &nbsp;·&nbsp; <span class="clear" onclick="toggleStatusFilter('${sector.replace(/'/g,"\\'")}','${activeStatus.replace(/'/g,"\\'")}')">limpar</span>` : assocItems.length}</span>
+          </div>
+          <div class="list">${displayItems.map(it => itemRowHtml(it)).join('')}</div>
+        </div>
+      </div>` : `<div class="card"><div class="empty-sector">Sem demandas ${assocFilter !== 'all' ? 'para esse filtro' : 'hoje'}.</div></div>`;
+
+    mainContent.innerHTML = `
+      <div class="sector-header" style="--sev-solid:${sev.solid}">
+        <h2>${escapeHtml(sector)}</h2>
+        <div class="total-row" style="margin-bottom:12px;"><span class="num">${total}</span><span class="lbl">demanda${total===1?'':'s'} hoje</span>
+          <div class="led" style="margin-left:14px;"><span class="bulb"></span>${sevLabel}</div>
+        </div>
+        <div class="badges">${badges || '<span style="color:var(--muted);font-size:13px;">Sem demandas</span>'}</div>
+      </div>
+      <div class="sector-layout">
+        <div>${buildEtapaChart(assocItems)}</div>
+        <div>${listHtml}</div>
+      </div>`;
+  }
+
+  // ---------- rotas / menu lateral ----------
+  function buildSidebarNav(){
+    const nav = document.getElementById('sidebarNav');
+    nav.innerHTML = `
+      <a href="#/painel" data-key="painel"><span class="navdot"></span>Painel das Demandas</a>
+      <div class="divider"></div>
+      ${Object.keys(SECTOR_SHEETS).map(s => `<a href="#/setor/${encodeURIComponent(s)}" data-key="setor:${escapeHtml(s)}"><span class="navdot"></span>${escapeHtml(s)}</a>`).join('')}
+    `;
+  }
+
+  function parseRoute(){
+    const hash = location.hash || '#/painel';
+    const parts = hash.replace(/^#\//,'').split('/');
+    if (parts[0] === 'setor' && parts[1]){
+      return {type:'setor', sector: decodeURIComponent(parts[1])};
+    }
+    return {type:'painel'};
+  }
+
+  function renderCurrentRoute(){
+    const route = parseRoute();
+    const activeKey = route.type === 'setor' ? 'setor:'+route.sector : 'painel';
+    document.querySelectorAll('#sidebarNav a').forEach(a => {
+      a.classList.toggle('active', a.dataset.key === activeKey);
+    });
+    if (route.type === 'setor') renderSectorPage(route.sector);
+    else renderHome();
+  }
+
+  window.addEventListener('hashchange', renderCurrentRoute);
 
   async function refresh(){
     lastSummary = await buildSummary();
-    render();
+    document.getElementById('updatedAt').textContent = fmtDateTime(lastSummary.updatedAt);
+    renderCurrentRoute();
   }
 
   function isPastToday(hh, mm){
@@ -534,9 +718,22 @@
     if (!btn) return;
     assocFilter = btn.dataset.v;
     document.querySelectorAll('#assocSeg button').forEach(b => b.classList.toggle('active', b === btn));
-    render();
+    renderCurrentRoute();
   });
 
+  const sidebarEl = document.getElementById('sidebar');
+  const sidebarToggleBtn = document.getElementById('sidebarToggle');
+  const sidebarOpenBtn = document.getElementById('sidebarOpenBtn');
+  sidebarToggleBtn.addEventListener('click', () => {
+    sidebarEl.classList.add('collapsed');
+    sidebarOpenBtn.classList.add('show');
+  });
+  sidebarOpenBtn.addEventListener('click', () => {
+    sidebarEl.classList.remove('collapsed');
+    sidebarOpenBtn.classList.remove('show');
+  });
+
+  buildSidebarNav();
   tickClock();
   setInterval(tickClock, 1000);
   refresh();
