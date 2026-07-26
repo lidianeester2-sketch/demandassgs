@@ -8,14 +8,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg: #EAECF1;
+    --bg: #EEF0F6;
     --panel: #FFFFFF;
     --panel-border: #DEE2EA;
     --text: #14181F;
     --muted: #667085;
-    --headbar: #12151C;
+    --headbar: #2E3178;
     --headbar-text: #F1F2F5;
-    --accent: #0E7C6B;
+    --accent: #F95F45;
 
     --amber-bg: #FBF0DE; --amber-text: #8A5A0B; --amber-solid: #C6890F;
     --red-bg: #FBE7E5;   --red-text: #A8332A;   --red-solid: #B8392F;
@@ -55,7 +55,22 @@
     background:#fff; color:var(--muted); cursor:pointer; transition:.12s;
   }
   .seg button:hover{color:var(--text); border-color:#C7CCD8;}
-  .seg button.active{background:var(--headbar); color:#fff; border-color:var(--headbar);}
+  .seg button.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+
+  .checklist{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .check-item{
+    display:flex; align-items:center; gap:8px;
+    font-size:13px; font-weight:600; color:var(--gray-text);
+    background:var(--gray-bg); border:1px solid var(--panel-border);
+    padding:7px 14px 7px 10px; border-radius:999px;
+  }
+  .check-item .check-icon{
+    width:17px; height:17px; border-radius:50%; flex:none;
+    display:flex; align-items:center; justify-content:center;
+    border:1.5px solid #B7BEC9; background:#fff; font-size:11px; color:#fff;
+  }
+  .check-item.done{color:var(--green-text); background:var(--green-bg); border-color:transparent;}
+  .check-item.done .check-icon{background:var(--green-solid); border-color:var(--green-solid);}
 
   main{padding: clamp(18px,2.4vh,30px) clamp(20px,3vw,48px);}
   .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap: clamp(14px,1.6vw,20px); align-items:start;}
@@ -88,7 +103,7 @@
     background:var(--b-bg); color:var(--b-text); transition:.12s;
   }
   .badge:hover{filter:brightness(0.97);}
-  .badge.active{border-color:var(--b-text);}
+  .badge.active{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent);}
   .badge .n{font-family:'JetBrains Mono',monospace;}
 
   .listwrap{border-top:1px solid var(--panel-border); padding-top:10px;}
@@ -98,8 +113,9 @@
   .item{
     display:flex; align-items:center; gap:10px; font-size:12.5px;
     background:#FAFBFC; border:1px solid var(--panel-border);
-    border-radius:9px; padding:8px 10px;
+    border-radius:9px; padding:8px 10px; cursor:pointer; transition:.12s;
   }
+  .item:hover{border-color:var(--accent); background:#FFF9F7;}
   .item .procwrap{flex:1; min-width:0;}
   .item .proc{font-family:'JetBrains Mono',monospace; font-weight:600; color:#0E1116; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .item .sub{color:var(--muted); font-size:11px; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
@@ -116,6 +132,34 @@
   footer.tvfoot{text-align:center; color:var(--muted); font-size:11px; padding:16px; letter-spacing:.4px;}
   .list::-webkit-scrollbar{width:6px;}
   .list::-webkit-scrollbar-thumb{background:#D2D7E0; border-radius:6px;}
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(20,24,31,.55);
+    backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center;
+    z-index:100; padding:20px;
+  }
+  .modal-overlay.hidden{display:none;}
+  .modal-box{
+    background:#fff; border-radius:16px; width:100%; max-width:480px;
+    max-height:82vh; overflow-y:auto;
+    box-shadow: 0 20px 50px rgba(20,24,31,.25);
+  }
+  .modal-head{
+    background:var(--headbar); color:#fff; padding:20px 24px;
+    display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
+    position:sticky; top:0;
+  }
+  .modal-head .proc{font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:600;}
+  .modal-head .sector{color:#B7BAD6; font-size:11px; text-transform:uppercase; letter-spacing:1.5px; margin-top:4px;}
+  .modal-close{background:none; border:none; color:#C7C9E0; font-size:22px; cursor:pointer; line-height:1;}
+  .modal-close:hover{color:#fff;}
+  .modal-body{padding:22px 24px;}
+  .modal-status{display:inline-flex; align-items:center; padding:6px 13px; border-radius:999px; font-size:12.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; margin-bottom:18px;}
+  .modal-field{padding:12px 0; border-top:1px solid var(--panel-border);}
+  .modal-field:first-of-type{border-top:none;}
+  .modal-field .k{font-size:10.5px; text-transform:uppercase; letter-spacing:1.3px; color:var(--muted); margin-bottom:4px;}
+  .modal-field .v{font-size:14.5px; color:var(--text); line-height:1.5; white-space:pre-wrap;}
 </style>
 </head>
 <body>
@@ -130,7 +174,7 @@
     </div>
     <div class="meta">
       <div class="clock" id="clock">--:--:--</div>
-      <div class="updated">Última consulta<br><b id="updatedAt">—</b></div>
+      <div class="updated">Última atualização<br><b id="updatedAt">—</b></div>
     </div>
   </div>
 
@@ -140,6 +184,11 @@
       <button data-v="all" class="active">Todas</button>
       <button data-v="mobili">Mobili</button>
       <button data-v="others">Outras Associações</button>
+    </div>
+    <div class="checklist" id="reportChecklist" style="margin-left:auto;">
+      <span class="flabel">Checklist do dia</span>
+      <div class="check-item" data-target="09:20"><span class="check-icon"></span>Relatório Manhã (09h20)</div>
+      <div class="check-item" data-target="14:00"><span class="check-icon"></span>Relatório Tarde (14h00)</div>
     </div>
   </div>
 
@@ -152,6 +201,10 @@
   </main>
 
   <footer class="tvfoot">Os dados vêm direto da planilha do Google. Para atualizar, edite a planilha — o painel lê os dados novos automaticamente.</footer>
+
+  <div class="modal-overlay hidden" id="detailOverlay">
+    <div class="modal-box" id="detailBox"></div>
+  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script>
@@ -193,6 +246,8 @@
   let lastSummary = null;
   let assocFilter = 'all';               // 'all' | 'mobili' | 'others'
   const sectorStatusFilter = {};         // sector -> status string | null
+  let itemIdCounter = 0;
+  let itemsById = {};                    // id -> {item, sector} para abrir o modal de detalhes
 
   function styleForStatus(status){ return STATUS_STYLES[status] || DEFAULT_STYLE; }
   function worstStyle(statusCounts){
@@ -224,6 +279,7 @@
     header.forEach((h, i) => { if ((h||"").trim() === "Processo") starts.push(i); });
     if (starts.length === 0) return [];
     const blocks = starts.map((s, idx) => ({ start: s, end: idx+1 < starts.length ? starts[idx+1] : header.length }));
+    const KNOWN = ["Processo", "Associação", "Etapa", "Status no SGS"];
     const items = [];
     for (const block of blocks){
       const local = header.slice(block.start, block.end).map(h => (h||"").trim());
@@ -231,16 +287,27 @@
       const assocI = local.indexOf("Associação");
       const etapaI = local.indexOf("Etapa");
       const statusI = local.indexOf("Status no SGS");
+      // qualquer outra coluna do bloco vira um campo extra, exibido no
+      // quadro de detalhes ao clicar no protocolo (ex: Observação,
+      // Vencimento, Veículo, Oficina, Etapa de Compra...)
+      const extraCols = local
+        .map((name, i) => ({name, i}))
+        .filter(c => c.name && !KNOWN.includes(c.name));
       for (let r = hIdx+1; r < rows.length; r++){
         const row = rows[r];
         if (!row) continue;
         const proc = row[block.start + procI];
         if (!proc) continue;
+        const extra = extraCols
+          .map(c => ({label: c.name, value: row[block.start + c.i]}))
+          .filter(f => f.value !== null && f.value !== undefined && String(f.value).trim() !== '');
         items.push({
+          id: 'it_' + (itemIdCounter++),
           processo: proc,
           associacao: assocI >= 0 ? row[block.start + assocI] : null,
           etapa: etapaI >= 0 ? row[block.start + etapaI] : null,
-          status: statusI >= 0 ? (row[block.start + statusI] || "Sem status") : "Sem status"
+          status: statusI >= 0 ? (row[block.start + statusI] || "Sem status") : "Sem status",
+          extra
         });
       }
     }
@@ -266,6 +333,7 @@
     for (const sector of Object.keys(SECTOR_SHEETS)){
       sectors[sector] = { total:0, statusCounts:{}, items:[], error:null };
     }
+    itemsById = {};
 
     await Promise.all(Object.entries(SECTOR_SHEETS).map(async ([sector, url]) => {
       if (!url || url.includes('COLE_AQUI')){
@@ -275,6 +343,7 @@
       try{
         const rows = await fetchCsv(url);
         const items = parseRowsToItems(rows);
+        items.forEach(it => { itemsById[it.id] = {item: it, sector}; });
         const statusCounts = {};
         items.forEach(it => { statusCounts[it.status] = (statusCounts[it.status]||0)+1; });
         sectors[sector] = { total: items.length, statusCounts, items, error:null };
@@ -371,7 +440,7 @@
             ${displayItems.map(it => {
               const st = styleForStatus(it.status);
               const subParts = [it.associacao, it.etapa].filter(Boolean).join(' · ');
-              return `<div class="item">
+              return `<div class="item" onclick="openDetail('${it.id}')">
                 <div class="procwrap">
                   <span class="proc">${escapeHtml(it.processo)}</span>
                   ${subParts ? `<span class="sub">${escapeHtml(subParts)}</span>` : ''}
@@ -404,9 +473,61 @@
     render();
   }
 
+  function isPastToday(hh, mm){
+    const now = new Date();
+    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0);
+    return now >= target;
+  }
+  function updateChecklist(){
+    document.querySelectorAll('#reportChecklist .check-item').forEach(el => {
+      const [hh, mm] = el.dataset.target.split(':').map(Number);
+      const done = isPastToday(hh, mm);
+      el.classList.toggle('done', done);
+      el.querySelector('.check-icon').textContent = done ? '✓' : '';
+    });
+  }
+
   function tickClock(){
     document.getElementById('clock').textContent = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    updateChecklist();
   }
+
+  function openDetail(id){
+    const entry = itemsById[id];
+    if (!entry) return;
+    const {item, sector} = entry;
+    const st = styleForStatus(item.status);
+
+    const baseFields = [
+      {label: 'Associação', value: item.associacao},
+      {label: 'Etapa', value: item.etapa}
+    ].concat(item.extra || []).filter(f => f.value !== null && f.value !== undefined && String(f.value).trim() !== '');
+
+    document.getElementById('detailBox').innerHTML = `
+      <div class="modal-head">
+        <div>
+          <div class="proc">${escapeHtml(item.processo)}</div>
+          <div class="sector">${escapeHtml(sector)}</div>
+        </div>
+        <button class="modal-close" onclick="closeDetail()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <span class="modal-status" style="background:${st.bg};color:${st.text}">${escapeHtml(item.status)}</span>
+        ${baseFields.map(f => `
+          <div class="modal-field">
+            <div class="k">${escapeHtml(f.label)}</div>
+            <div class="v">${escapeHtml(f.value)}</div>
+          </div>`).join('')}
+      </div>`;
+    document.getElementById('detailOverlay').classList.remove('hidden');
+  }
+  function closeDetail(){
+    document.getElementById('detailOverlay').classList.add('hidden');
+  }
+  document.getElementById('detailOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'detailOverlay') closeDetail();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDetail(); });
 
   document.getElementById('assocSeg').addEventListener('click', (e) => {
     const btn = e.target.closest('button');
