@@ -163,6 +163,16 @@
   .card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--sev-solid, var(--gray-solid));}
   .card-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px;}
   .card-head h2{font-family:'Big Shoulders Display',sans-serif; font-weight:700; text-transform:uppercase; font-size:clamp(18px,1.7vw,23px); margin:0; letter-spacing:.3px; line-height:1.05; color:#0E1116;}
+  .card-head-right{display:flex; align-items:center; gap:8px; flex:none;}
+  .card-toggle{
+    background:rgba(20,24,31,.05); border:none; width:26px; height:26px; border-radius:8px;
+    cursor:pointer; font-size:13px; color:var(--muted);
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .15s, background .12s; flex:none;
+  }
+  .card-toggle:hover{background:rgba(20,24,31,.1); color:var(--text);}
+  .card.collapsed .card-toggle{transform:rotate(-90deg);}
+  .card.collapsed .card-body{display:none;}
   .led{
     display:flex; align-items:center; gap:6px;
     font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:600;
@@ -395,6 +405,7 @@
   let assocFilter = 'all';               // 'all' | 'mobili' | 'others'
   const sectorStatusFilter = {};         // sector -> status string | null
   const sectorEtapaFilter = {};          // sector -> etapa string | null
+  const collapsedSectors = {};           // sector -> bool (cards minimizados no painel geral)
   let itemIdCounter = 0;
   let itemsById = {};                    // id -> {item, sector} para abrir o modal de detalhes
 
@@ -656,18 +667,28 @@
       }
 
       html += `
-        <div class="card" style="--sev-solid:${sev.solid};--sev-bg:${sev.bg};--sev-text:${sev.text}">
+        <div class="card ${collapsedSectors[sector] ? 'collapsed' : ''}" style="--sev-solid:${sev.solid};--sev-bg:${sev.bg};--sev-text:${sev.text}">
           <div class="card-head">
             <h2>${escapeHtml(sector)}</h2>
-            <div class="led"><span class="bulb"></span>${sevLabel}</div>
+            <div class="card-head-right">
+              <div class="led"><span class="bulb"></span>${sevLabel}</div>
+              <button class="card-toggle" onclick="toggleCardCollapse('${sector.replace(/'/g,"\\'")}')" title="${collapsedSectors[sector] ? 'Expandir' : 'Minimizar'}">⌄</button>
+            </div>
           </div>
-          <div class="total-row"><span class="num">${total}</span><span class="lbl">demanda${total===1?'':'s'}</span></div>
-          <div class="badges">${badges || '<span style="color:var(--muted);font-size:13px;">Sem demandas</span>'}</div>
-          ${listHtml}
+          <div class="card-body">
+            <div class="total-row"><span class="num">${total}</span><span class="lbl">demanda${total===1?'':'s'}</span></div>
+            <div class="badges">${badges || '<span style="color:var(--muted);font-size:13px;">Sem demandas</span>'}</div>
+            ${listHtml}
+          </div>
         </div>`;
     }
     html += '</div>';
     mainContent.innerHTML = html;
+  }
+
+  function toggleCardCollapse(sector){
+    collapsedSectors[sector] = !collapsedSectors[sector];
+    renderCurrentRoute();
   }
 
   function itemRowHtml(it, sector){
