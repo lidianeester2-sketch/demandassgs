@@ -721,52 +721,39 @@
 
   // ---------- envio por WhatsApp ----------
   function buildWhatsAppMessage(){
-  if (!lastSummary) return "Painel de Demandas: sem dados no momento.";
+  if (!lastSummary) return "Relatório de Demandas: sem dados no momento.";
 
   const lines = [];
 
-  lines.push("📊 *RELATÓRIO DE DEMANDAS SGS*");
+  lines.push("📋 *RELATÓRIO DE DEMANDAS*");
+  lines.push(`🗓 Atualização: ${fmtDateTime(lastSummary.updatedAt)}`);
   lines.push("");
-  lines.push(`📅 Atualização: ${fmtDateTime(lastSummary.updatedAt)}`);
-  lines.push("");
 
-  const order = [
-    "Comunicação",
-    "Analise",
-    "Peças",
-    "Juridico",
-    "Regulação",
-    "Auditoria"
-  ];
+  const order = ["Comunicação","Analise","Peças","Juridico","Regulação","Auditoria"];
 
-  order.forEach(sector => {
-    const data = lastSummary.sectors[sector];
-    if (!data || data.error) return;
+  order.forEach(sector=>{
+    const data=lastSummary.sectors[sector];
+    if(!data||data.error) return;
 
-    const items = data.items.filter(matchesAssoc);
+    const items=data.items.filter(matchesAssoc);
+    const total=items.length;
+    const expirados=items.filter(i=>i.status==="Expirado").length;
+    const criticos=items.filter(i=>i.status==="Crítico").length;
+    const alertas=items.filter(i=>i.status==="Alerta").length;
 
-    const total = items.length;
-    const expirados = items.filter(i => i.status === "Expirado").length;
-    const criticos = items.filter(i => i.status === "Crítico").length;
-    const alertas = items.filter(i => i.status === "Alerta").length;
+    lines.push("────────────────────");
+    lines.push(`*${sector.toUpperCase()}*`);
 
-    lines.push(`*${sector}*`);
-
-    if (sector === "Comunicação") {
-      lines.push(`• ${total} demanda(s) pendente(s)`);
-      lines.push(`• ${expirados} pendência(s) expirada(s)`);
-      lines.push(`• ${alertas} em alerta (podem se tornar críticas em breve)`);
-    } else {
-      const atrasos = expirados + criticos;
-
-      lines.push(`• ${total} demanda(s) pendente(s)`);
-      lines.push(`• Atrasos: ${atrasos}`);
+    if(sector==="Comunicação"){
+      lines.push(`• Total de demandas: ${total}`);
+      lines.push(`• Pendências expiradas: ${expirados}`);
+      lines.push(`• Em alerta: ${alertas}`);
+    }else{
+      lines.push(`• Total de demandas: ${total}`);
+      lines.push(`• Atrasos: ${expirados+criticos}`);
     }
-
     lines.push("");
   });
-
-  lines.push("✅ Painel SGS");
 
   return lines.join("\n");
 }
