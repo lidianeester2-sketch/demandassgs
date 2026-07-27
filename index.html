@@ -821,15 +821,17 @@
     return ` (${parts.join(', ')})`;
   }
 
-  function buildWhatsAppMessage(){
-    if (!lastSummary) return 'Relatório de Demandas: sem dados no momento.';
-
+  function reportHeaderParts(){
     const now = new Date();
     let weekday = now.toLocaleDateString('pt-BR', {weekday: 'long'});
     weekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
     const dateStr = now.toLocaleDateString('pt-BR');
-    const procWord = n => n === 1 ? 'processo' : 'processos';
+    return { weekday, dateStr };
+  }
+  const procWord = n => n === 1 ? 'processo' : 'processos';
 
+  function buildGeneralReportMessage(){
+    const { weekday, dateStr } = reportHeaderParts();
     const lines = [];
     lines.push('*Relatório Diário de Pendências*');
     lines.push(`${weekday} | ${dateStr}`);
@@ -841,17 +843,17 @@
       const data = lastSummary.sectors[sector];
       if (!data || data.error) return;
       const items = data.items.filter(matchesAssoc);
-      const atrasos = items.filter(it => it.status === 'Expirado' || it.status === 'Crítico').length;
-      const alertas = items.filter(it => it.status === 'Alerta').length;
-      totalAtrasos += atrasos;
-      totalAlertas += alertas;
+      const atrasadosItems = items.filter(it => it.status === 'Expirado' || it.status === 'Crítico');
+      const alertaItems = items.filter(it => it.status === 'Alerta');
+      totalAtrasos += atrasadosItems.length;
+      totalAlertas += alertaItems.length;
 
       // setores sem atraso e sem alerta não entram no relatório
-      if (atrasos === 0 && alertas === 0) return;
+      if (atrasadosItems.length === 0 && alertaItems.length === 0) return;
 
       lines.push(`*Setor de ${sector}*`);
-      lines.push(`Atrasados: ${atrasos} ${procWord(atrasos)}${etapaBreakdown(items.filter(it => it.status === 'Expirado' || it.status === 'Crítico'))}`);
-      lines.push(`Em alerta: ${alertas} ${procWord(alertas)}`);
+      lines.push(`Atrasados: ${atrasadosItems.length} ${procWord(atrasadosItems.length)}${etapaBreakdown(atrasadosItems)}`);
+      lines.push(`Em alerta: ${alertaItems.length} ${procWord(alertaItems.length)}`);
       lines.push('');
     });
 
@@ -862,14 +864,58 @@
     return lines.join('\n');
   }
 
+  function buildSectorReportMessage(sector){
+    const { weekday, dateStr } = reportHeaderParts();
+    const lines = [];
+    lines.push(`*Relatório - Setor de ${sector}*`);
+    lines.push(`${weekday} | ${dateStr}`);
+    lines.push('');
+
+    const data = lastSummary.sectors[sector];
+    if (!data || data.error){
+      lines.push('Sem dados no momento.');
+      return lines.join('\n');
+    }
+
+    const items = data.items.filter(matchesAssoc);
+    const atrasadosItems = items.filter(it => it.status === 'Expirado' || it.status === 'Crítico');
+    const alertaItems = items.filter(it => it.status === 'Alerta');
+
+    lines.push(`Total de demandas: ${items.length} ${procWord(items.length)}`);
+    lines.push(`Atrasados: ${atrasadosItems.length} ${procWord(atrasadosItems.length)}${etapaBreakdown(atrasadosItems)}`);
+    lines.push(`Em alerta: ${alertaItems.length} ${procWord(alertaItems.length)}`);
+    lines.push('');
+
+    lines.push('*Por etapa (todas as demandas do setor)*');
+    const etapaCounts = {};
+    items.forEach(it => { const k = (it.etapa||'').trim() || 'Sem etapa'; etapaCounts[k] = (etapaCounts[k]||0)+1; });
+    const etapaEntries = Object.entries(etapaCounts).sort((a,b) => b[1]-a[1]);
+    if (etapaEntries.length === 0){
+      lines.push('Sem demandas no momento.');
+    } else {
+      etapaEntries.forEach(([k,n]) => lines.push(`${k}: ${n} ${procWord(n)}`));
+    }
+
+    return lines.join('\n');
+  }
+
+  function buildWhatsAppMessage(){
+    if (!lastSummary) return 'Relatório de Demandas: sem dados no momento.';
+    const route = parseRoute();
+    if (route.type === 'setor') return buildSectorReportMessage(route.sector);
+    return buildGeneralReportMessage();
+  }
+
   function openWhatsAppMenu(){
     const validContacts = CONTACTS.filter(c => c.phone && !c.phone.includes('COLE_O_TELEFONE'));
+    const route = parseRoute();
+    const menuTitle = route.type === 'setor' ? `Relatório do setor: ${route.sector}` : 'Relatório geral (todos os setores)';
     const box = document.getElementById('waBox');
     box.innerHTML = `
       <div class="modal-head">
         <div>
           <div class="proc" style="font-size:16px;">Enviar por WhatsApp</div>
-          <div class="sector">Escolha quem vai receber</div>
+          <div class="sector">${escapeHtml(menuTitle)}</div>
         </div>
         <button class="modal-close" onclick="closeWhatsAppMenu()">&times;</button>
       </div>
