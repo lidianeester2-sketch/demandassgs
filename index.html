@@ -721,36 +721,55 @@
 
   // ---------- envio por WhatsApp ----------
   function buildWhatsAppMessage(){
-    if (!lastSummary) return 'Painel de Demandas: sem dados no momento.';
-    const route = parseRoute();
-    const lines = [];
+  if (!lastSummary) return "Painel de Demandas: sem dados no momento.";
 
-    if (route.type === 'setor'){
-      const sector = route.sector;
-      const data = lastSummary.sectors[sector];
-      lines.push(`*${sector} — atualização do painel*`);
-      if (!data || data.error){
-        lines.push('Sem dados no momento.');
-      } else {
-        const items = data.items.filter(matchesAssoc);
-        const counts = {};
-        items.forEach(it => { counts[it.status] = (counts[it.status]||0)+1; });
-        lines.push(`${items.length} demanda(s) hoje`);
-        Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([s,n]) => lines.push(`• ${s}: ${n}`));
-      }
+  const lines = [];
+
+  lines.push("📊 *RELATÓRIO DE DEMANDAS SGS*");
+  lines.push("");
+  lines.push(`📅 Atualização: ${fmtDateTime(lastSummary.updatedAt)}`);
+  lines.push("");
+
+  const order = [
+    "Comunicação",
+    "Analise",
+    "Peças",
+    "Juridico",
+    "Regulação",
+    "Auditoria"
+  ];
+
+  order.forEach(sector => {
+    const data = lastSummary.sectors[sector];
+    if (!data || data.error) return;
+
+    const items = data.items.filter(matchesAssoc);
+
+    const total = items.length;
+    const expirados = items.filter(i => i.status === "Expirado").length;
+    const criticos = items.filter(i => i.status === "Crítico").length;
+    const alertas = items.filter(i => i.status === "Alerta").length;
+
+    lines.push(`*${sector}*`);
+
+    if (sector === "Comunicação") {
+      lines.push(`• ${total} demanda(s) pendente(s)`);
+      lines.push(`• ${expirados} pendência(s) expirada(s)`);
+      lines.push(`• ${alertas} em alerta (podem se tornar críticas em breve)`);
     } else {
-      lines.push('*Painel de Demandas — resumo geral*');
-      Object.entries(lastSummary.sectors).forEach(([sector, data]) => {
-        if (data.error) return;
-        const items = data.items.filter(matchesAssoc);
-        lines.push(`${sector}: ${items.length} demanda(s)`);
-      });
+      const atrasos = expirados + criticos;
+
+      lines.push(`• ${total} demanda(s) pendente(s)`);
+      lines.push(`• Atrasos: ${atrasos}`);
     }
 
-    lines.push('');
-    lines.push(`Atualizado em ${fmtDateTime(lastSummary.updatedAt)}`);
-    return lines.join('\n');
-  }
+    lines.push("");
+  });
+
+  lines.push("✅ Painel SGS");
+
+  return lines.join("\n");
+}
 
   function openWhatsAppMenu(){
     const validContacts = CONTACTS.filter(c => c.phone && !c.phone.includes('COLE_O_TELEFONE'));
