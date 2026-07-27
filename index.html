@@ -99,23 +99,6 @@
   .seg button:hover{color:var(--text); border-color:#C7CCD8;}
   .seg button.active{background:var(--accent); color:#fff; border-color:var(--accent);}
 
-  .wa-btn{
-    font-family:'Inter',sans-serif; font-size:13px; font-weight:700;
-    padding:8px 16px; border-radius:999px; border:none; cursor:pointer;
-    background:#25D366; color:#fff; transition:.12s;
-  }
-  .wa-btn:hover{filter:brightness(0.96);}
-  .wa-contact{
-    display:flex; justify-content:space-between; align-items:center;
-    padding:12px 14px; border:1px solid var(--panel-border); border-radius:11px;
-    margin-bottom:8px; cursor:pointer; transition:.12s;
-  }
-  .wa-contact:hover{border-color:#25D366; background:#F3FBF6;}
-  .wa-contact .wa-name{font-weight:700; font-size:14px; color:var(--text);}
-  .wa-contact .wa-phone{font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--muted); margin-top:2px;}
-  .wa-contact .wa-send{color:#25D366; font-size:20px;}
-  .wa-empty{color:var(--muted); font-size:13.5px; line-height:1.6;}
-
   .checklist{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
   .check-item{
     display:flex; align-items:center; gap:8px;
@@ -285,12 +268,11 @@
           <button data-v="mobili">Mobili</button>
           <button data-v="others">Outras Associações</button>
         </div>
-        <div class="checklist" id="reportChecklist">
+        <div class="checklist" id="reportChecklist" style="margin-left:auto;">
           <span class="flabel">Checklist do dia</span>
           <div class="check-item" data-target="09:20"><span class="check-icon"></span>Relatório Manhã (09h20)</div>
           <div class="check-item" data-target="14:00"><span class="check-icon"></span>Relatório Tarde (14h00)</div>
         </div>
-        <button class="wa-btn" id="waBtn" style="margin-left:auto;">📲 Enviar por WhatsApp</button>
       </div>
 
       <main id="mainContent"></main>
@@ -301,10 +283,6 @@
 
   <div class="modal-overlay hidden" id="detailOverlay">
     <div class="modal-box" id="detailBox"></div>
-  </div>
-
-  <div class="modal-overlay hidden" id="waOverlay">
-    <div class="modal-box" id="waBox"></div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -331,15 +309,6 @@
   // Nome exato da associação usada no filtro "Mobili" (deve bater com a
   // coluna Associação da planilha).
   const MOBILI_NAME = "Mobili";
-
-  // Pessoas que podem receber a atualização por WhatsApp. Telefone no
-  // formato DDI+DDD+número, só dígitos (ex: 55 11 91234-5678 vira
-  // "5511912345678"). Adicione ou remova linhas à vontade.
-  const CONTACTS = [
-    { name: "Lidiane", phone: "5531981200249" }
-    { name: "Guilherme", phone: "5531995650704" }
-
-  ];
 
   // Ordem de gravidade dos status conhecidos (o primeiro é o mais grave).
   // Qualquer status que não esteja nesta lista (ex: "No prazo") aparece
@@ -721,80 +690,6 @@
     renderCurrentRoute();
   }
 
-  // ---------- envio por WhatsApp ----------
-  function buildWhatsAppMessage(){
-    if (!lastSummary) return 'Painel de Demandas: sem dados no momento.';
-    const route = parseRoute();
-    const lines = [];
-
-    if (route.type === 'setor'){
-      const sector = route.sector;
-      const data = lastSummary.sectors[sector];
-      lines.push(`*${sector} — atualização do painel*`);
-      if (!data || data.error){
-        lines.push('Sem dados no momento.');
-      } else {
-        const items = data.items.filter(matchesAssoc);
-        const counts = {};
-        items.forEach(it => { counts[it.status] = (counts[it.status]||0)+1; });
-        lines.push(`${items.length} demanda(s) hoje`);
-        Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([s,n]) => lines.push(`• ${s}: ${n}`));
-      }
-    } else {
-      lines.push('*Painel de Demandas — resumo geral*');
-      Object.entries(lastSummary.sectors).forEach(([sector, data]) => {
-        if (data.error) return;
-        const items = data.items.filter(matchesAssoc);
-        lines.push(`${sector}: ${items.length} demanda(s)`);
-      });
-    }
-
-    lines.push('');
-    lines.push(`Atualizado em ${fmtDateTime(lastSummary.updatedAt)}`);
-    return lines.join('\n');
-  }
-
-  function openWhatsAppMenu(){
-    const validContacts = CONTACTS.filter(c => c.phone && !c.phone.includes('COLE_O_TELEFONE'));
-    const box = document.getElementById('waBox');
-    box.innerHTML = `
-      <div class="modal-head">
-        <div>
-          <div class="proc" style="font-size:16px;">Enviar por WhatsApp</div>
-          <div class="sector">Escolha quem vai receber</div>
-        </div>
-        <button class="modal-close" onclick="closeWhatsAppMenu()">&times;</button>
-      </div>
-      <div class="modal-body">
-        ${validContacts.length === 0
-          ? `<div class="wa-empty">Nenhum contato cadastrado ainda. Abra o arquivo, procure <code>CONTACTS</code> no início do script e cadastre nome e telefone (com DDI+DDD, só números).</div>`
-          : validContacts.map((c,i) => `
-            <div class="wa-contact" onclick="sendWhatsApp(${i})">
-              <div>
-                <div class="wa-name">${escapeHtml(c.name)}</div>
-                <div class="wa-phone">${escapeHtml(c.phone)}</div>
-              </div>
-              <div class="wa-send">➜</div>
-            </div>`).join('')}
-      </div>`;
-    window.__waValidContacts = validContacts;
-    document.getElementById('waOverlay').classList.remove('hidden');
-  }
-  function closeWhatsAppMenu(){
-    document.getElementById('waOverlay').classList.add('hidden');
-  }
-  function sendWhatsApp(i){
-    const contact = window.__waValidContacts[i];
-    if (!contact) return;
-    const text = encodeURIComponent(buildWhatsAppMessage());
-    window.open(`https://wa.me/${contact.phone}?text=${text}`, '_blank');
-    closeWhatsAppMenu();
-  }
-  document.getElementById('waBtn').addEventListener('click', openWhatsAppMenu);
-  document.getElementById('waOverlay').addEventListener('click', (e) => {
-    if (e.target.id === 'waOverlay') closeWhatsAppMenu();
-  });
-
   // ---------- rotas / menu lateral ----------
   function buildSidebarNav(){
     const nav = document.getElementById('sidebarNav');
@@ -886,7 +781,7 @@
   document.getElementById('detailOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'detailOverlay') closeDetail();
   });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape'){ closeDetail(); closeWhatsAppMenu(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDetail(); });
 
   document.getElementById('assocSeg').addEventListener('click', (e) => {
     const btn = e.target.closest('button');
