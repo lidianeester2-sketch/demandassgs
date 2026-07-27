@@ -797,7 +797,12 @@
   function etapaBreakdown(items){
     if (items.length === 0) return '';
     const counts = {};
-    items.forEach(it => { const k = (it.etapa||'').trim() || 'Sem etapa'; counts[k] = (counts[k]||0)+1; });
+    items.forEach(it => {
+      const etapa = (it.etapa||'').trim() || 'Sem etapa';
+      const assoc = (it.associacao||'').trim() || 'Sem associação';
+      const k = `${etapa} · ${assoc}`;
+      counts[k] = (counts[k]||0)+1;
+    });
     const parts = Object.entries(counts).sort((a,b) => b[1]-a[1]).map(([k,n]) => `${k}: ${n}`);
     return ` (${parts.join(', ')})`;
   }
@@ -830,7 +835,7 @@
       // setores sem atraso e sem alerta não entram no relatório
       if (atrasos === 0 && alertas === 0) return;
 
-      lines.push(`*${sector}*`);
+      lines.push(`*Setor de ${sector}*`);
       lines.push(`Atrasados: ${atrasos} ${procWord(atrasos)}${etapaBreakdown(items.filter(it => it.status === 'Expirado' || it.status === 'Crítico'))}`);
       lines.push(`Em alerta: ${alertas} ${procWord(alertas)}`);
       lines.push('');
