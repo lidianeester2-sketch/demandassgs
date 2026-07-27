@@ -804,7 +804,7 @@
     const procWord = n => n === 1 ? 'processo' : 'processos';
 
     const lines = [];
-    lines.push('Relatório Diário de Pendências');
+    lines.push('*Relatório Diário de Pendências*');
     lines.push(`${weekday} | ${dateStr}`);
     lines.push('');
 
@@ -822,15 +822,15 @@
       // setores sem atraso e sem alerta não entram no relatório
       if (atrasos === 0 && alertas === 0) return;
 
-      lines.push(`- ${sector}`);
-      lines.push(`${atrasos > 0 ? '🔴' : '✅'} ${atrasos} ${procWord(atrasos)} em atraso`);
-      lines.push(`⚠️ ${alertas} ${procWord(alertas)} em alerta`);
+      lines.push(`*${sector}*`);
+      lines.push(`Atrasados: ${atrasos} ${procWord(atrasos)}`);
+      lines.push(`Em alerta: ${alertas} ${procWord(alertas)}`);
       lines.push('');
     });
 
-    lines.push('- Resumo do dia:');
-    lines.push(`🔴 Total de atrasos: ${totalAtrasos} ${procWord(totalAtrasos)}`);
-    lines.push(`⚠️ Total de processos em alerta: ${totalAlertas} ${procWord(totalAlertas)}`);
+    lines.push('*Resumo do dia*');
+    lines.push(`Total de atrasos: ${totalAtrasos} ${procWord(totalAtrasos)}`);
+    lines.push(`Total de processos em alerta: ${totalAlertas} ${procWord(totalAlertas)}`);
 
     return lines.join('\n');
   }
