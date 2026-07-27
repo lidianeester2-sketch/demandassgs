@@ -116,6 +116,27 @@
   .wa-contact .wa-send{color:#25D366; font-size:20px;}
   .wa-empty{color:var(--muted); font-size:13.5px; line-height:1.6;}
 
+  .marks-row{display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;}
+  .mark-tag{font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:999px; display:inline-block;}
+  .mark-tag.mark-done{background:var(--green-bg); color:var(--green-text);}
+  .mark-tag.mark-pass{background:var(--gray-bg); color:var(--gray-text);}
+  .item.item-done{opacity:.65;}
+
+  .track-box{border-top:1px solid var(--panel-border); padding-top:16px; margin-top:4px;}
+  .track-box .k{font-size:10.5px; text-transform:uppercase; letter-spacing:1.3px; color:var(--muted); margin-bottom:10px;}
+  .track-check{display:flex; align-items:center; gap:9px; font-size:14px; font-weight:600; margin-bottom:12px; cursor:pointer;}
+  .track-check input{width:17px; height:17px; cursor:pointer;}
+  .track-input{
+    width:100%; padding:10px 12px; border:1px solid var(--panel-border); border-radius:9px;
+    font-size:13.5px; font-family:'Inter',sans-serif; margin-bottom:12px;
+  }
+  .track-save{
+    background:var(--accent); color:#fff; border:none; padding:9px 18px;
+    border-radius:9px; font-weight:700; font-size:13px; cursor:pointer;
+  }
+  .track-save:hover{filter:brightness(0.96);}
+  .track-note{font-size:11px; color:var(--muted); margin-top:10px; line-height:1.5;}
+
   .checklist{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
   .check-item{
     display:flex; align-items:center; gap:8px;
@@ -363,6 +384,49 @@
   let itemIdCounter = 0;
   let itemsById = {};                    // id -> {item, sector} para abrir o modal de detalhes
 
+  // ---------- marcações dos gestores (feito / passado para) ----------
+  // Guardadas no navegador (localStorage) e resetadas automaticamente
+  // sempre que os dados da planilha mudam (ou seja, quando você lança
+  // o próximo relatório).
+  const MARKS_KEY = 'sgs_marks_v1';
+  let marksStore = { signature: null, marks: {} };
+
+  function loadMarks(){
+    try{
+      const raw = localStorage.getItem(MARKS_KEY);
+      if (raw) marksStore = JSON.parse(raw);
+    }catch(e){ marksStore = { signature: null, marks: {} }; }
+  }
+  function saveMarks(){
+    try{ localStorage.setItem(MARKS_KEY, JSON.stringify(marksStore)); }catch(e){}
+  }
+  function computeDataSignature(summary){
+    const parts = [];
+    Object.entries(summary.sectors).forEach(([sector, data]) => {
+      if (data.error) return;
+      data.items.forEach(it => parts.push(`${sector}|${it.processo}|${it.status}|${it.etapa||''}`));
+    });
+    parts.sort();
+    return parts.join('~');
+  }
+  function reconcileMarks(summary){
+    const sig = computeDataSignature(summary);
+    if (marksStore.signature !== sig){
+      marksStore = { signature: sig, marks: {} };
+      saveMarks();
+    }
+  }
+  function markKey(sector, processo){ return sector + '||' + processo; }
+  function getMark(sector, processo){
+    return marksStore.marks[markKey(sector, processo)] || { feito:false, passadoPara:'' };
+  }
+  function setMark(sector, processo, patch){
+    const key = markKey(sector, processo);
+    const cur = marksStore.marks[key] || { feito:false, passadoPara:'' };
+    marksStore.marks[key] = Object.assign({}, cur, patch);
+    saveMarks();
+  }
+
   function styleForStatus(status){ return STATUS_STYLES[status] || DEFAULT_STYLE; }
   function worstStyle(statusCounts){
     for (const s of SEVERITY_ORDER){ if (statusCounts[s] > 0) return styleForStatus(s); }
@@ -570,7 +634,7 @@
             <span>${activeStatus ? `${displayItems.length} de ${assocItems.length} &nbsp;·&nbsp; <span class="clear" onclick="toggleStatusFilter('${sector.replace(/'/g,"\\'")}','${activeStatus.replace(/'/g,"\\'")}')">limpar</span>` : assocItems.length}</span>
           </div>
           <div class="list">
-            ${displayItems.map(it => itemRowHtml(it)).join('')}
+            ${displayItems.map(it => itemRowHtml(it, sector)).join('')}
           </div>
         </div>`;
       } else {
@@ -592,19 +656,26 @@
     mainContent.innerHTML = html;
   }
 
-  function itemRowHtml(it){
+  function itemRowHtml(it, sector){
     const st = styleForStatus(it.status);
     const subParts = [it.associacao, it.etapa].filter(Boolean).join(' · ');
-    return `<div class="item" onclick="openDetail('${it.id}')">
+    const mark = getMark(sector, it.processo);
+    const marksHtml = (mark.feito || mark.passadoPara) ? `
+      <div class="marks-row">
+        ${mark.feito ? '<span class="mark-tag mark-done">✓ Feito</span>' : ''}
+        ${mark.passadoPara ? `<span class="mark-tag mark-pass">→ ${escapeHtml(mark.passadoPara)}</span>` : ''}
+      </div>` : '';
+    return `<div class="item ${mark.feito ? 'item-done' : ''}" onclick="openDetail('${it.id}')">
       <div class="procwrap">
         <span class="proc">${escapeHtml(it.processo)}</span>
         ${subParts ? `<span class="sub">${escapeHtml(subParts)}</span>` : ''}
+        ${marksHtml}
       </div>
       <span class="st" style="background:${st.bg};color:${st.text}">${escapeHtml(it.status)}</span>
     </div>`;
   }
 
-  function listSectionHtml(title, items){
+  function listSectionHtml(title, items, sector){
     if (items.length === 0){
       return `<div class="listwrap">
         <div class="list-title"><span>${escapeHtml(title)}</span><span>0</span></div>
@@ -613,7 +684,7 @@
     }
     return `<div class="listwrap">
       <div class="list-title"><span>${escapeHtml(title)}</span><span>${items.length}</span></div>
-      <div class="list">${items.map(it => itemRowHtml(it)).join('')}</div>
+      <div class="list">${items.map(it => itemRowHtml(it, sector)).join('')}</div>
     </div>`;
   }
 
@@ -690,13 +761,13 @@
       const otherItems = displayItems.filter(it => !isSameDay(parseFlexDate(it.prazo), today));
       listHtml = `<div class="card sector-list">
         ${filterHeaderHtml}
-        ${listSectionHtml('Tarefas de hoje (prazo hoje)', todayItems)}
-        ${listSectionHtml('Tarefas a fazer (outros prazos)', otherItems)}
+        ${listSectionHtml('Tarefas de hoje (prazo hoje)', todayItems, sector)}
+        ${listSectionHtml('Tarefas a fazer (outros prazos)', otherItems, sector)}
       </div>`;
     } else {
       const bodyHtml = hasActiveFilter
-        ? `<div class="list">${displayItems.map(it => itemRowHtml(it)).join('')}</div>`
-        : listSectionHtml('Todos os protocolos', displayItems);
+        ? `<div class="list">${displayItems.map(it => itemRowHtml(it, sector)).join('')}</div>`
+        : listSectionHtml('Todos os protocolos', displayItems, sector);
       listHtml = `<div class="card sector-list">
         ${filterHeaderHtml}
         ${bodyHtml}
@@ -724,42 +795,28 @@
 
   // ---------- envio por WhatsApp ----------
   function buildWhatsAppMessage(){
-  if (!lastSummary) return "Relatório de Demandas: sem dados no momento.";
+    if (!lastSummary) return 'Relatório de Demandas: sem dados no momento.';
 
-  const lines = [];
+    const lines = [];
+    lines.push('*Resumo do Painel de Demandas*');
+    lines.push(fmtDateTime(lastSummary.updatedAt));
+    lines.push('');
 
-  lines.push("*RELATÓRIO DE DEMANDAS*");
-  lines.push(`Atualização: ${fmtDateTime(lastSummary.updatedAt)}`);
-  lines.push("");
+    let totalGeral = 0, totalAtencao = 0;
+    Object.keys(SECTOR_SHEETS).forEach(sector => {
+      const data = lastSummary.sectors[sector];
+      if (!data || data.error) return;
+      const items = data.items.filter(matchesAssoc);
+      const atencao = items.filter(it => SEVERITY_ORDER.includes(it.status)).length;
+      totalGeral += items.length;
+      totalAtencao += atencao;
+      lines.push(`${sector}: ${items.length}${atencao > 0 ? ` (${atencao} precisam de atenção)` : ''}`);
+    });
 
-  const order = ["Comunicação","Analise","Peças","Juridico","Regulação","Auditoria"];
-
-  order.forEach(sector=>{
-    const data=lastSummary.sectors[sector];
-    if(!data||data.error) return;
-
-    const items=data.items.filter(matchesAssoc);
-    const total=items.length;
-    const expirados=items.filter(i=>i.status==="Expirado").length;
-    const criticos=items.filter(i=>i.status==="Crítico").length;
-    const alertas=items.filter(i=>i.status==="Alerta").length;
-
-    lines.push("────────────────────");
-    lines.push(`*${sector.toUpperCase()}*`);
-
-    if(sector==="Comunicação"){
-      lines.push(`• Total de demandas: ${total}`);
-      lines.push(`• Pendências expiradas: ${expirados}`);
-      lines.push(`• Em alerta: ${alertas}`);
-    }else{
-      lines.push(`• Total de demandas: ${total}`);
-      lines.push(`• Atrasos: ${expirados+criticos}`);
-    }
-    lines.push("");
-  });
-
-  return lines.join("\n");
-}
+    lines.push('');
+    lines.push(`Total: ${totalGeral} demandas · ${totalAtencao} precisam de atenção`);
+    return lines.join('\n');
+  }
 
   function openWhatsAppMenu(){
     const validContacts = CONTACTS.filter(c => c.phone && !c.phone.includes('COLE_O_TELEFONE'));
@@ -835,6 +892,7 @@
 
   async function refresh(){
     lastSummary = await buildSummary();
+    reconcileMarks(lastSummary);
     document.getElementById('updatedAt').textContent = fmtDateTime(lastSummary.updatedAt);
     renderCurrentRoute();
   }
@@ -863,6 +921,7 @@
     if (!entry) return;
     const {item, sector} = entry;
     const st = styleForStatus(item.status);
+    const mark = getMark(sector, item.processo);
 
     const baseFields = [
       {label: 'Associação', value: item.associacao},
@@ -884,8 +943,27 @@
             <div class="k">${escapeHtml(f.label)}</div>
             <div class="v">${escapeHtml(f.value)}</div>
           </div>`).join('')}
+        <div class="track-box">
+          <div class="k">Acompanhamento do gestor</div>
+          <label class="track-check">
+            <input type="checkbox" id="markFeito" ${mark.feito ? 'checked' : ''}>
+            Já foi feito
+          </label>
+          <input type="text" class="track-input" id="markPassado" placeholder="Passado para quem? (nome)" value="${escapeHtml(mark.passadoPara)}">
+          <button class="track-save" onclick="saveMarkFromModal('${item.id}')">Salvar</button>
+          <div class="track-note">Fica salvo neste computador até você lançar o próximo relatório (quando atualizar a planilha).</div>
+        </div>
       </div>`;
     document.getElementById('detailOverlay').classList.remove('hidden');
+  }
+  function saveMarkFromModal(id){
+    const entry = itemsById[id];
+    if (!entry) return;
+    const feito = document.getElementById('markFeito').checked;
+    const passadoPara = document.getElementById('markPassado').value.trim();
+    setMark(entry.sector, entry.item.processo, { feito, passadoPara });
+    closeDetail();
+    renderCurrentRoute();
   }
   function closeDetail(){
     document.getElementById('detailOverlay').classList.add('hidden');
@@ -916,6 +994,7 @@
   });
 
   buildSidebarNav();
+  loadMarks();
   tickClock();
   setInterval(tickClock, 1000);
   refresh();
