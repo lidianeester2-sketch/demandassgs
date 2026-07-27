@@ -647,7 +647,7 @@
             <h2>${escapeHtml(sector)}</h2>
             <div class="led"><span class="bulb"></span>${sevLabel}</div>
           </div>
-          <div class="total-row"><span class="num">${total}</span><span class="lbl">demanda${total===1?'':'s'} hoje</span></div>
+          <div class="total-row"><span class="num">${total}</span><span class="lbl">demanda${total===1?'':'s'}</span></div>
           <div class="badges">${badges || '<span style="color:var(--muted);font-size:13px;">Sem demandas</span>'}</div>
           ${listHtml}
         </div>`;
@@ -667,7 +667,7 @@
       </div>` : '';
     return `<div class="item ${mark.feito ? 'item-done' : ''}" onclick="openDetail('${it.id}')">
       <div class="procwrap">
-        <span class="proc">${escapeHtml(it.processo)}</span>
+        <span class="proc" style="${mark.feito ? 'text-decoration:line-through; text-decoration-thickness:1.5px;' : ''}">${escapeHtml(it.processo)}</span>
         ${subParts ? `<span class="sub">${escapeHtml(subParts)}</span>` : ''}
         ${marksHtml}
       </div>
@@ -777,7 +777,7 @@
     mainContent.innerHTML = `
       <div class="sector-header" style="--sev-solid:${sev.solid}">
         <h2>${escapeHtml(sector)}</h2>
-        <div class="total-row" style="margin-bottom:12px;"><span class="num">${total}</span><span class="lbl">demanda${total===1?'':'s'} hoje</span>
+        <div class="total-row" style="margin-bottom:12px;"><span class="num">${total}</span><span class="lbl">demanda${total===1?'':'s'}</span>
           <div class="led" style="margin-left:14px;"><span class="bulb"></span>${sevLabel}</div>
         </div>
         <div class="badges">${badges || '<span style="color:var(--muted);font-size:13px;">Sem demandas</span>'}</div>
@@ -797,24 +797,24 @@
   function buildWhatsAppMessage(){
     if (!lastSummary) return 'Relatório de Demandas: sem dados no momento.';
 
-    const lines = [];
-    lines.push('*Resumo do Painel de Demandas*');
-    lines.push(fmtDateTime(lastSummary.updatedAt));
-    lines.push('');
+    const now = new Date();
+    const weekday = now.toLocaleDateString('pt-BR', {weekday: 'long'});
+    const dateStr = now.toLocaleDateString('pt-BR');
 
-    let totalGeral = 0, totalAtencao = 0;
+    const lines = [];
+    lines.push(`Relatório ${weekday} (${dateStr})`);
+
     Object.keys(SECTOR_SHEETS).forEach(sector => {
       const data = lastSummary.sectors[sector];
       if (!data || data.error) return;
       const items = data.items.filter(matchesAssoc);
-      const atencao = items.filter(it => SEVERITY_ORDER.includes(it.status)).length;
-      totalGeral += items.length;
-      totalAtencao += atencao;
-      lines.push(`${sector}: ${items.length}${atencao > 0 ? ` (${atencao} precisam de atenção)` : ''}`);
+      // Atrasos: processos expirados e críticos.
+      const atrasos = items.filter(it => it.status === 'Expirado' || it.status === 'Crítico').length;
+      // Precisam de atenção: em alerta, vão ficar expirados nos próximos dias.
+      const atencao = items.filter(it => it.status === 'Alerta').length;
+      lines.push(`${sector}: ${atrasos}${atencao > 0 ? ` (${atencao} precisam de atenção)` : ''}`);
     });
 
-    lines.push('');
-    lines.push(`Total: ${totalGeral} demandas · ${totalAtencao} precisam de atenção`);
     return lines.join('\n');
   }
 
@@ -944,24 +944,36 @@
             <div class="v">${escapeHtml(f.value)}</div>
           </div>`).join('')}
         <div class="track-box">
-          <div class="k">Acompanhamento do gestor</div>
+          <div class="k">Passar demanda para</div>
+          <input type="text" class="track-input" id="markPassado" placeholder="Nome da pessoa responsável" value="${escapeHtml(mark.passadoPara)}">
+          <button class="track-save" onclick="saveResponsavel('${item.id}')">Salvar responsável</button>
+          ${mark.passadoPara ? `<div class="track-note">Responsável atual: <b>${escapeHtml(mark.passadoPara)}</b></div>` : ''}
+        </div>
+        <div class="track-box">
+          <div class="k">Marcar como realizada</div>
           <label class="track-check">
             <input type="checkbox" id="markFeito" ${mark.feito ? 'checked' : ''}>
-            Já foi feito
+            Demanda foi feita
           </label>
-          <input type="text" class="track-input" id="markPassado" placeholder="Passado para quem? (nome)" value="${escapeHtml(mark.passadoPara)}">
-          <button class="track-save" onclick="saveMarkFromModal('${item.id}')">Salvar</button>
-          <div class="track-note">Fica salvo neste computador até você lançar o próximo relatório (quando atualizar a planilha).</div>
+          <button class="track-save" onclick="saveFeito('${item.id}')">Salvar</button>
+          <div class="track-note">As duas marcações ficam salvas neste computador até você lançar o próximo relatório (quando atualizar a planilha).</div>
         </div>
       </div>`;
     document.getElementById('detailOverlay').classList.remove('hidden');
   }
-  function saveMarkFromModal(id){
+  function saveResponsavel(id){
+    const entry = itemsById[id];
+    if (!entry) return;
+    const passadoPara = document.getElementById('markPassado').value.trim();
+    setMark(entry.sector, entry.item.processo, { passadoPara });
+    closeDetail();
+    renderCurrentRoute();
+  }
+  function saveFeito(id){
     const entry = itemsById[id];
     if (!entry) return;
     const feito = document.getElementById('markFeito').checked;
-    const passadoPara = document.getElementById('markPassado').value.trim();
-    setMark(entry.sector, entry.item.processo, { feito, passadoPara });
+    setMark(entry.sector, entry.item.processo, { feito });
     closeDetail();
     renderCurrentRoute();
   }
