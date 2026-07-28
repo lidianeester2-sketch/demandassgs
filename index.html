@@ -16,29 +16,36 @@
     --muted: #6B7280;
     --muted-soft: #9AA1B2;
 
-    /* identidade: azul (principal) + laranja (destaque) */
-    --primary: #2E51E8;
-    --primary-dark: #1D3BB8;
-    --primary-light: #EAF0FE;
-    --sidebar-from: #131B3F;
-    --sidebar-to: #202A5C;
-    --accent: #FF7A3D;
-    --accent-dark: #E8631F;
-    --accent-light: #FFEEE2;
+    /* identidade: paleta Ceees — navy profundo, teal e terracota/laranja queimado */
+    --navy: #0D1D25;
+    --teal: #104C64;
+    --mist: #C6C6D0;
+    --sand: #D59D80;
+    --clay: #C0754D;
+    --burnt: #B6410F;
 
-    --amber-bg: #FBF0DE; --amber-text: #8A5A0B; --amber-solid: #C6890F;
-    --red-bg: #FBE7E5;   --red-text: #A8332A;   --red-solid: #B8392F;
-    --maroon-bg: #F2E1E6; --maroon-text: #7A2E45; --maroon-solid: #7A2E45;
+    --primary: #104C64;
+    --primary-dark: #0D1D25;
+    --primary-light: #E7EEF1;
+    --sidebar-from: #0D1D25;
+    --sidebar-to: #104C64;
+    --accent: #B6410F;
+    --accent-dark: #8A3009;
+    --accent-light: #F7E7DE;
+
+    --amber-bg: #F7ECE3; --amber-text: #8A5326; --amber-solid: #C0754D;
+    --red-bg: #F2DAD1;   --red-text: #7A2E10;   --red-solid: #8A3009;
+    --maroon-bg: #E4E4E8; --maroon-text: #2A2E36; --maroon-solid: #0D1D25;
     --green-bg: #E4F1E9; --green-text: #24693F; --green-solid: #2F8551;
-    --gray-bg: #EDEFF3;  --gray-text: #545C70;  --gray-solid: #8A93A8;
+    --gray-bg: #EDEEF2;  --gray-text: #4F5866;  --gray-solid: #9497A3;
 
     --radius-xl: 22px;
     --radius-lg: 16px;
     --radius-md: 12px;
     --ease: cubic-bezier(.22,.9,.32,1);
-    --shadow-soft: 0 1px 2px rgba(15,20,50,.04), 0 8px 20px -6px rgba(30,63,196,.08);
-    --shadow-hover: 0 4px 10px rgba(15,20,50,.06), 0 18px 34px -8px rgba(30,63,196,.16);
-    --shadow-modal: 0 30px 70px -12px rgba(10,14,40,.35);
+    --shadow-soft: 0 1px 2px rgba(13,29,37,.05), 0 8px 20px -6px rgba(16,76,100,.10);
+    --shadow-hover: 0 4px 10px rgba(13,29,37,.07), 0 18px 34px -8px rgba(16,76,100,.18);
+    --shadow-modal: 0 30px 70px -12px rgba(13,29,37,.4);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;height:100%;}
@@ -106,7 +113,7 @@
     width:38px; height:38px; border-radius:11px; border:none;
     background:linear-gradient(135deg, var(--primary), var(--sidebar-to)); color:#fff; cursor:pointer; font-size:15px;
     display:none; align-items:center; justify-content:center;
-    box-shadow:0 8px 20px rgba(30,63,196,.32);
+    box-shadow:0 8px 20px rgba(16,76,100,.34);
   }
   .sidebar-open-btn.show{display:flex;}
 
@@ -121,7 +128,7 @@
   .brand .dot{
     width:38px;height:38px;border-radius:12px; flex:none;
     background:linear-gradient(135deg, var(--primary), var(--accent));
-    box-shadow:0 6px 16px rgba(47,85,234,.28);
+    box-shadow:0 6px 16px rgba(16,76,100,.3);
   }
   .brand h1{font-family:'Poppins',sans-serif; font-weight:700; letter-spacing:0; font-size:clamp(17px,2vw,22px); margin:0; color:var(--text);}
   .brand span.sub{color:var(--muted); font-size:clamp(10px,.8vw,11.5px); text-transform:uppercase; letter-spacing:1.6px;}
@@ -147,7 +154,7 @@
     background:transparent; color:var(--muted); cursor:pointer; transition:.18s var(--ease);
   }
   .seg button:hover{color:var(--text);}
-  .seg button.active{background:linear-gradient(135deg, var(--primary), var(--primary-dark)); color:#fff; box-shadow:0 4px 10px rgba(47,85,234,.3);}
+  .seg button.active{background:linear-gradient(135deg, var(--primary), var(--primary-dark)); color:#fff; box-shadow:0 4px 10px rgba(16,76,100,.32);}
 
   .wa-btn{
     font-family:'Inter',sans-serif; font-size:12.8px; font-weight:700;
@@ -232,7 +239,7 @@
     display:flex; align-items:center; justify-content:center;
     transition:transform .18s var(--ease), background .15s var(--ease); flex:none;
   }
-  .card-toggle:hover, .card-toggle-h:hover{background:#DEE7FD; color:var(--primary-dark);}
+  .card-toggle:hover, .card-toggle-h:hover{background:#D8E3E7; color:var(--primary-dark);}
   .card.collapsed .card-toggle{transform:rotate(-90deg);}
   .card.collapsed .card-body{display:none;}
   .card.collapsed-h .card-toggle-h{transform:rotate(180deg);}
