@@ -1206,13 +1206,24 @@
         capture = document.createElement('div');
         capture.id = 'reportImageCapture';
         capture.style.position = 'fixed';
-        capture.style.left = '-9999px';
+        capture.style.left = '0';
         capture.style.top = '0';
+        capture.style.zIndex = '-9999';
+        capture.style.opacity = '0';
+        capture.style.pointerEvents = 'none';
         document.body.appendChild(capture);
       }
       capture.innerHTML = buildReportImageHtml();
       await new Promise(r => setTimeout(r, 80));
-      const canvas = await html2canvas(capture.firstElementChild, {scale:2, backgroundColor:'#F2F4FA'});
+      const target = capture.firstElementChild;
+      const canvas = await html2canvas(target, {
+        scale: 2,
+        backgroundColor: '#F2F4FA',
+        width: target.offsetWidth,
+        height: target.offsetHeight,
+        windowWidth: target.offsetWidth,
+        windowHeight: target.offsetHeight
+      });
       canvas.toBlob(async (blob) => {
         btn.disabled = false;
         btn.textContent = original;
