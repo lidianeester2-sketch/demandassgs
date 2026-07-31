@@ -1131,8 +1131,8 @@
     const hole = (size - holeSize) / 2;
     return `
       <div style="position:relative;width:${size}px;height:${size}px;">
-        <div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};"></div>
-        <div style="position:absolute;top:${hole}px;left:${hole}px;width:${holeSize}px;height:${holeSize}px;border-radius:50%;background:#F5F6FA;display:flex;align-items:center;justify-content:center;text-align:center;">${centerHtml}</div>
+        <div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};box-shadow:0 0 0 2px #fff inset, 0 2px 6px rgba(20,24,40,.12);"></div>
+        <div style="position:absolute;top:${hole}px;left:${hole}px;width:${holeSize}px;height:${holeSize}px;border-radius:50%;background:#F5F6FA;box-shadow:0 0 0 2px #fff;display:flex;align-items:center;justify-content:center;text-align:center;">${centerHtml}</div>
       </div>`;
   }
   function abbrev(name, n){
@@ -1164,11 +1164,11 @@
     const legendHtml = sectorRows.map((r,i) => {
       const color = ['#2E3178','#F95F45','#C6890F','#B8392F','#7A2E45','#2F8551','#8A93A8'][i % 7];
       return `
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;">
-          <div style="width:7px;height:7px;border-radius:50%;background:${color};flex:none;"></div>
-          <div style="width:88px;font-size:10.5px;color:#20243A;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(r.sector)}</div>
-          <div style="flex:1;background:#EAECF4;border-radius:5px;height:6px;overflow:hidden;"><div style="height:100%;width:${(r.total/maxTotal*100)}%;background:${color};border-radius:5px;"></div></div>
-          <div style="width:20px;text-align:right;font-size:10.5px;color:#20243A;font-weight:700;">${r.total}</div>
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px;">
+          <div style="width:11px;height:11px;border-radius:50%;background:${color};flex:none;box-shadow:0 0 0 2px #fff, 0 0 0 3px ${color};"></div>
+          <div style="width:88px;font-size:11px;color:#20243A;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(r.sector)}</div>
+          <div style="flex:1;background:#E2E5F2;border-radius:6px;height:10px;overflow:hidden;"><div style="height:100%;width:${(r.total/maxTotal*100)}%;background:${color};border-radius:6px;"></div></div>
+          <div style="width:22px;text-align:right;font-size:11.5px;color:#20243A;font-weight:800;">${r.total}</div>
         </div>`;
     }).join('');
 
@@ -1182,17 +1182,19 @@
     const donut = donutHtml(donutSegs, 118, 76, `<div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:20px;color:#20243A;">${totalDemandas}</div><div style="font-size:8px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.5px;">total</div></div>`);
     const donutLegend = [
       {c:'#7A2E45', l:'Expirado'}, {c:'#B8392F', l:'Crítico'}, {c:'#C6890F', l:'Alerta'}, {c:'#8A93A8', l:'No prazo'}
-    ].map(x => `<div style="display:flex;align-items:center;gap:4px;font-size:8.5px;color:#5C6379;margin-bottom:4px;"><span style="width:6px;height:6px;border-radius:50%;background:${x.c};display:inline-block;"></span>${x.l}</div>`).join('');
+    ].map(x => `<div style="display:flex;align-items:center;gap:6px;font-size:9.5px;color:#20243A;font-weight:700;margin-bottom:6px;"><span style="width:9px;height:9px;border-radius:50%;background:${x.c};display:inline-block;box-shadow:0 0 0 2px #fff, 0 0 0 3px ${x.c};"></span>${x.l}</div>`).join('');
 
     // barras: atrasos por setor
-    const barsHtml = sectorRows.map(r => {
-      const h = Math.round((r.atrasos / maxAtrasos) * 74) || 2;
-      const color = r.atrasos > 0 ? '#B8392F' : '#D8DCE8';
+    const palette = ['#2E3178','#F95F45','#C6890F','#B8392F','#7A2E45','#2F8551','#8A93A8'];
+    const barsHtml = sectorRows.map((r,i) => {
+      const h = Math.round((r.atrasos / maxAtrasos) * 78) || 4;
+      const color = r.atrasos > 0 ? '#B8392F' : palette[i % 7];
+      const opacity = r.atrasos > 0 ? 1 : 0.35;
       return `
         <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;">
-          <div style="font-size:9px;color:#20243A;font-weight:700;">${r.atrasos}</div>
-          <div style="width:16px;height:${h}px;background:${color};border-radius:5px;"></div>
-          <div style="font-size:8px;color:#9AA1B8;text-align:center;line-height:1.2;">${escapeHtml(abbrev(r.sector, 6))}</div>
+          <div style="font-size:10.5px;color:#20243A;font-weight:800;">${r.atrasos}</div>
+          <div style="width:22px;height:${h}px;background:${color};opacity:${opacity};border-radius:6px 6px 3px 3px;box-shadow:0 2px 4px rgba(20,24,40,.15);"></div>
+          <div style="font-size:8.5px;color:#5C6379;font-weight:700;text-align:center;line-height:1.2;">${escapeHtml(abbrev(r.sector, 6))}</div>
         </div>`;
     }).join('');
 
@@ -1201,9 +1203,9 @@
       const emDia = Math.max(0, r.total - r.atrasos - r.alertas);
       const pct = r.total > 0 ? Math.round((emDia / r.total) * 100) : 100;
       const color = pct >= 80 ? '#2F8551' : pct >= 50 ? '#C6890F' : '#B8392F';
-      const g = donutHtml([{color, value: pct}, {color:'#E2E5F0', value: 100-pct}], 52, 36,
-        `<div style="font-size:10px;font-weight:800;color:#20243A;">${pct}%</div>`);
-      return `<div style="display:flex;flex-direction:column;align-items:center;gap:5px;">${g}<div style="font-size:8px;color:#9AA1B8;text-align:center;">${escapeHtml(abbrev(r.sector, 6))}</div></div>`;
+      const g = donutHtml([{color, value: pct}, {color:'#E2E5F0', value: 100-pct}], 58, 34,
+        `<div style="font-size:11px;font-weight:800;color:#20243A;">${pct}%</div>`);
+      return `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;">${g}<div style="font-size:8.5px;color:#20243A;font-weight:700;text-align:center;">${escapeHtml(abbrev(r.sector, 6))}</div></div>`;
     }).join('');
 
     return { totalDemandas, totalAtrasos, totalAlertas, legendHtml, donut, donutLegend, barsHtml, gaugesHtml };
@@ -1229,7 +1231,7 @@
     const donut = donutHtml(donutSegs, 118, 76, `<div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:20px;color:#20243A;">${items.length}</div><div style="font-size:8px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.5px;">total</div></div>`);
     const donutLegend = [
       {c:'#7A2E45', l:'Expirado'}, {c:'#B8392F', l:'Crítico'}, {c:'#C6890F', l:'Alerta'}, {c:'#8A93A8', l:'No prazo'}
-    ].map(x => `<div style="display:flex;align-items:center;gap:4px;font-size:8.5px;color:#5C6379;margin-bottom:4px;"><span style="width:6px;height:6px;border-radius:50%;background:${x.c};display:inline-block;"></span>${x.l}</div>`).join('');
+    ].map(x => `<div style="display:flex;align-items:center;gap:6px;font-size:9.5px;color:#20243A;font-weight:700;margin-bottom:6px;"><span style="width:9px;height:9px;border-radius:50%;background:${x.c};display:inline-block;box-shadow:0 0 0 2px #fff, 0 0 0 3px ${x.c};"></span>${x.l}</div>`).join('');
 
     const etapaCounts = {};
     items.forEach(it => { const k = (it.etapa||'').trim() || 'Sem etapa'; etapaCounts[k] = (etapaCounts[k]||0)+1; });
@@ -1238,7 +1240,7 @@
     const etapaHtml = etapaEntries.map(([k,n]) => `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
         <div style="width:110px;font-size:10.5px;color:#20243A;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(k)}</div>
-        <div style="flex:1;background:#EAECF4;border-radius:5px;height:7px;overflow:hidden;"><div style="height:100%;width:${(n/maxE*100)}%;background:#2E3178;border-radius:5px;"></div></div>
+        <div style="flex:1;background:#E2E5F2;border-radius:6px;height:11px;overflow:hidden;"><div style="height:100%;width:${(n/maxE*100)}%;background:#2E3178;border-radius:6px;"></div></div>
         <div style="width:18px;text-align:right;font-size:10.5px;color:#20243A;font-weight:700;">${n}</div>
       </div>`).join('');
 
@@ -1255,7 +1257,9 @@
         return `<div style="font-family:'Inter',sans-serif;background:#F5F6FA;padding:26px;width:460px;color:#9AA1B8;">Sem dados no momento.</div>`;
       }
       return `
-        <div style="font-family:'Inter',system-ui,sans-serif; background:#F5F6FA; padding:26px; width:460px;">
+        <div style="font-family:'Inter',system-ui,sans-serif; background:#F5F6FA; width:460px; border:2px solid #20243A; border-radius:18px; overflow:hidden;">
+          <div style="height:8px;background:linear-gradient(90deg,#2E3178,#F95F45);"></div>
+          <div style="padding:24px 26px 26px;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
             <div>
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
@@ -1271,7 +1275,7 @@
               <div><div style="font-size:8.5px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.8px;">Em Alerta</div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:19px;color:#C6890F;">${b.alertas}</div></div>
             </div>
           </div>
-          <div style="height:1px;background:#E2E5F0;margin-bottom:20px;"></div>
+          <div style="height:2px;background:#20243A;opacity:.12;margin-bottom:20px;"></div>
           <div style="display:flex;gap:18px;margin-bottom:4px;">
             <div style="flex:1;">
               <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:#20243A;font-weight:700;margin-bottom:12px;">Tarefas por Etapa</div>
@@ -1283,12 +1287,15 @@
               <div style="margin-top:10px;text-align:left;display:inline-block;">${b.donutLegend}</div>
             </div>
           </div>
+        </div>
         </div>`;
     }
 
     const g = buildGeneralImageBlock();
     return `
-      <div style="font-family:'Inter',system-ui,sans-serif; background:#F5F6FA; padding:26px; width:460px;">
+      <div style="font-family:'Inter',system-ui,sans-serif; background:#F5F6FA; width:460px; border:2px solid #20243A; border-radius:18px; overflow:hidden;">
+          <div style="height:8px;background:linear-gradient(90deg,#2E3178,#F95F45);"></div>
+          <div style="padding:24px 26px 26px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
           <div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
@@ -1304,7 +1311,7 @@
             <div><div style="font-size:8.5px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.8px;">Em Alerta</div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:19px;color:#C6890F;">${g.totalAlertas}</div></div>
           </div>
         </div>
-        <div style="height:1px;background:#E2E5F0;margin-bottom:20px;"></div>
+        <div style="height:2px;background:#20243A;opacity:.12;margin-bottom:20px;"></div>
 
         <div style="display:flex;gap:18px;margin-bottom:22px;">
           <div style="flex:1;">
@@ -1326,6 +1333,7 @@
         <div>
           <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:#20243A;font-weight:700;margin-bottom:14px;">% Em Dia por Setor</div>
           <div style="display:flex;justify-content:space-between;">${g.gaugesHtml}</div>
+        </div>
         </div>
       </div>`;
   }
@@ -1354,7 +1362,7 @@
       const target = capture.firstElementChild;
       const canvas = await html2canvas(target, {
         scale: 2,
-        backgroundColor: '#F5F6FA',
+        backgroundColor: null,
         width: target.offsetWidth,
         height: target.offsetHeight,
         windowWidth: target.offsetWidth,
