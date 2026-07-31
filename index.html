@@ -1125,16 +1125,16 @@
       const sev = worstStyle(statusCounts);
       const badgesHtml = Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([s,n]) => {
         const st = styleForStatus(s);
-        return `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:700;background:${st.bg};color:${st.text};margin:0 6px 6px 0;">${escapeHtml(s)} ${n}</span>`;
+        return `<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:10.5px;font-weight:700;background:${st.bg};color:${st.text};margin:0 5px 5px 0;">${escapeHtml(s)} ${n}</span>`;
       }).join('');
       rows += `
-        <div style="background:#fff;border:1px solid #E7EAF6;border-radius:16px;padding:16px 18px;margin-bottom:12px;position:relative;overflow:hidden;">
-          <div style="position:absolute;left:0;top:0;bottom:0;width:5px;background:${sev.solid};"></div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:18px;color:#2E3178;text-transform:uppercase;">${escapeHtml(sector)}</div>
-            <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:26px;color:#2E3178;">${items.length}</div>
+        <div style="background:#fff;border-radius:13px;padding:14px 16px;margin-bottom:10px;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(20,24,40,.06);">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:${sev.solid};"></div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+            <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:700;font-size:15px;color:#20243A;text-transform:uppercase;letter-spacing:.2px;">${escapeHtml(sector)}</div>
+            <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:20px;color:#20243A;">${items.length}</div>
           </div>
-          <div>${badgesHtml || '<span style="color:#7B84A3;font-size:12px;">Sem demandas</span>'}</div>
+          <div>${badgesHtml || '<span style="color:#9AA1B8;font-size:11px;">Sem demandas</span>'}</div>
         </div>`;
     });
     return rows;
@@ -1142,13 +1142,13 @@
 
   function buildSectorImageBlock(sector){
     const data = lastSummary.sectors[sector];
-    if (!data || data.error) return '<div style="color:#7B84A3;">Sem dados no momento.</div>';
+    if (!data || data.error) return '<div style="color:#9AA1B8;font-size:12px;">Sem dados no momento.</div>';
     const items = data.items.filter(matchesAssoc);
     const statusCounts = {};
     items.forEach(it => { statusCounts[it.status] = (statusCounts[it.status]||0)+1; });
     const badgesHtml = Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([s,n]) => {
       const st = styleForStatus(s);
-      return `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:700;background:rgba(255,255,255,.16);color:#fff;margin:0 6px 6px 0;">${escapeHtml(s)} ${n}</span>`;
+      return `<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:10.5px;font-weight:700;background:rgba(255,255,255,.14);color:#fff;margin:0 5px 5px 0;">${escapeHtml(s)} ${n}</span>`;
     }).join('');
 
     const etapaCounts = {};
@@ -1156,21 +1156,21 @@
     const etapaEntries = Object.entries(etapaCounts).sort((a,b)=>b[1]-a[1]);
     const maxE = etapaEntries.length ? etapaEntries[0][1] : 1;
     const chartHtml = etapaEntries.map(([k,n]) => `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <div style="width:150px;font-size:12.5px;color:#1B1F2E;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(k)}</div>
-        <div style="flex:1;background:#EEF0F8;border-radius:8px;height:13px;overflow:hidden;"><div style="height:100%;width:${(n/maxE*100)}%;background:#2E3178;border-radius:8px;"></div></div>
-        <div style="width:26px;text-align:right;font-size:12.5px;color:#7B84A3;font-weight:600;">${n}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div style="width:120px;font-size:11px;color:#3A3F55;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(k)}</div>
+        <div style="flex:1;background:#EEF0F8;border-radius:6px;height:9px;overflow:hidden;"><div style="height:100%;width:${(n/maxE*100)}%;background:#2E3178;border-radius:6px;"></div></div>
+        <div style="width:20px;text-align:right;font-size:11px;color:#9AA1B8;font-weight:600;">${n}</div>
       </div>`).join('');
 
     return `
-      <div style="background:linear-gradient(120deg,#2E3178,#3B3F94);border-radius:20px;padding:24px;color:#fff;margin-bottom:16px;">
-        <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:26px;text-transform:uppercase;margin-bottom:12px;">${escapeHtml(sector)}</div>
-        <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:40px;margin-bottom:12px;">${items.length} <span style="font-size:12px;font-weight:600;color:#C7CAE8;text-transform:uppercase;">demandas</span></div>
+      <div style="background:linear-gradient(120deg,#2E3178,#3B3F94);border-radius:16px;padding:18px 20px;color:#fff;margin-bottom:12px;">
+        <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:700;font-size:17px;text-transform:uppercase;letter-spacing:.2px;margin-bottom:8px;">${escapeHtml(sector)}</div>
+        <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:30px;margin-bottom:10px;">${items.length} <span style="font-size:10.5px;font-weight:600;color:#C7CAE8;text-transform:uppercase;">demandas</span></div>
         <div>${badgesHtml || ''}</div>
       </div>
-      <div style="background:#fff;border:1px solid #E7EAF6;border-radius:16px;padding:20px;">
-        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:#7B84A3;font-weight:700;margin-bottom:16px;">Tarefas por etapa</div>
-        ${chartHtml || '<div style="color:#7B84A3;font-size:12px;">Sem dados.</div>'}
+      <div style="background:#fff;border-radius:14px;padding:16px 18px;box-shadow:0 1px 3px rgba(20,24,40,.06);">
+        <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:1.1px;color:#9AA1B8;font-weight:700;margin-bottom:12px;">Tarefas por etapa</div>
+        ${chartHtml || '<div style="color:#9AA1B8;font-size:11px;">Sem dados.</div>'}
       </div>`;
   }
 
@@ -1178,15 +1178,17 @@
     const { weekday, dateStr } = reportHeaderParts();
     const route = parseRoute();
     const inner = route.type === 'setor' ? buildSectorImageBlock(route.sector) : buildGeneralImageBlock();
-    const title = route.type === 'setor' ? `Painel SGS · ${escapeHtml(route.sector)}` : 'Painel SGS';
+    const subtitle = route.type === 'setor' ? escapeHtml(route.sector) : 'Resumo geral';
     return `
-      <div style="font-family:'Inter',system-ui,sans-serif; background:#EEF1FA; padding:30px; width:680px;">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
-          <div style="width:14px;height:14px;border-radius:50%;background:#F95F45;box-shadow:0 0 0 4px #FFEDE8;"></div>
-          <div>
-            <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:26px;color:#2E3178;text-transform:uppercase;">${title}</div>
-            <div style="color:#7B84A3;font-size:12px;">${weekday} · ${dateStr}</div>
+      <div style="font-family:'Inter',system-ui,sans-serif; background:#F2F4FA; padding:24px; width:440px;">
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <div style="width:6px;height:6px;border-radius:50%;background:#F95F45;"></div>
+            <div style="font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#9AA1B8;font-weight:700;">${subtitle}</div>
           </div>
+          <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:24px;color:#20243A;letter-spacing:.2px;">Relatório Diário</div>
+          <div style="color:#9AA1B8;font-size:11px;margin-top:2px;">${weekday} · ${dateStr}</div>
+          <div style="height:1px;background:#E2E5F0;margin-top:14px;"></div>
         </div>
         ${inner}
       </div>`;
@@ -1210,7 +1212,7 @@
       }
       capture.innerHTML = buildReportImageHtml();
       await new Promise(r => setTimeout(r, 80));
-      const canvas = await html2canvas(capture.firstElementChild, {scale:2, backgroundColor:'#EEF1FA'});
+      const canvas = await html2canvas(capture.firstElementChild, {scale:2, backgroundColor:'#F2F4FA'});
       canvas.toBlob(async (blob) => {
         btn.disabled = false;
         btn.textContent = original;
