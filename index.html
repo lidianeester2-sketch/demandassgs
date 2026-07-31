@@ -412,6 +412,7 @@
           <div class="check-item" data-target="14:00"><span class="check-icon"></span>Relatório Tarde (14h00)</div>
         </div>
         <button class="wa-btn" id="waBtn" style="margin-left:auto;">📲 Enviar por WhatsApp</button>
+        <button class="wa-btn" id="waImgBtn" style="background:var(--headbar); box-shadow:0 4px 12px rgba(46,49,120,.3);">🖼️ Enviar imagem</button>
       </div>
 
       <main id="mainContent"></main>
@@ -430,6 +431,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script>
   // ============================================================
   // CONFIGURAÇÃO
@@ -1110,6 +1112,133 @@
     closeWhatsAppMenu();
   }
   document.getElementById('waBtn').addEventListener('click', openWhatsAppMenu);
+
+  // ---------- relatório em imagem (mesmo layout do painel) ----------
+  function buildGeneralImageBlock(){
+    let rows = '';
+    Object.keys(SECTOR_SHEETS).forEach(sector => {
+      const data = lastSummary.sectors[sector];
+      if (!data || data.error) return;
+      const items = data.items.filter(matchesAssoc);
+      const statusCounts = {};
+      items.forEach(it => { statusCounts[it.status] = (statusCounts[it.status]||0)+1; });
+      const sev = worstStyle(statusCounts);
+      const badgesHtml = Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([s,n]) => {
+        const st = styleForStatus(s);
+        return `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:700;background:${st.bg};color:${st.text};margin:0 6px 6px 0;">${escapeHtml(s)} ${n}</span>`;
+      }).join('');
+      rows += `
+        <div style="background:#fff;border:1px solid #E7EAF6;border-radius:16px;padding:16px 18px;margin-bottom:12px;position:relative;overflow:hidden;">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:5px;background:${sev.solid};"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:18px;color:#2E3178;text-transform:uppercase;">${escapeHtml(sector)}</div>
+            <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:26px;color:#2E3178;">${items.length}</div>
+          </div>
+          <div>${badgesHtml || '<span style="color:#7B84A3;font-size:12px;">Sem demandas</span>'}</div>
+        </div>`;
+    });
+    return rows;
+  }
+
+  function buildSectorImageBlock(sector){
+    const data = lastSummary.sectors[sector];
+    if (!data || data.error) return '<div style="color:#7B84A3;">Sem dados no momento.</div>';
+    const items = data.items.filter(matchesAssoc);
+    const statusCounts = {};
+    items.forEach(it => { statusCounts[it.status] = (statusCounts[it.status]||0)+1; });
+    const badgesHtml = Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([s,n]) => {
+      const st = styleForStatus(s);
+      return `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:700;background:rgba(255,255,255,.16);color:#fff;margin:0 6px 6px 0;">${escapeHtml(s)} ${n}</span>`;
+    }).join('');
+
+    const etapaCounts = {};
+    items.forEach(it => { const k = (it.etapa||'').trim() || 'Sem etapa'; etapaCounts[k] = (etapaCounts[k]||0)+1; });
+    const etapaEntries = Object.entries(etapaCounts).sort((a,b)=>b[1]-a[1]);
+    const maxE = etapaEntries.length ? etapaEntries[0][1] : 1;
+    const chartHtml = etapaEntries.map(([k,n]) => `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="width:150px;font-size:12.5px;color:#1B1F2E;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(k)}</div>
+        <div style="flex:1;background:#EEF0F8;border-radius:8px;height:13px;overflow:hidden;"><div style="height:100%;width:${(n/maxE*100)}%;background:#2E3178;border-radius:8px;"></div></div>
+        <div style="width:26px;text-align:right;font-size:12.5px;color:#7B84A3;font-weight:600;">${n}</div>
+      </div>`).join('');
+
+    return `
+      <div style="background:linear-gradient(120deg,#2E3178,#3B3F94);border-radius:20px;padding:24px;color:#fff;margin-bottom:16px;">
+        <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:26px;text-transform:uppercase;margin-bottom:12px;">${escapeHtml(sector)}</div>
+        <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:40px;margin-bottom:12px;">${items.length} <span style="font-size:12px;font-weight:600;color:#C7CAE8;text-transform:uppercase;">demandas</span></div>
+        <div>${badgesHtml || ''}</div>
+      </div>
+      <div style="background:#fff;border:1px solid #E7EAF6;border-radius:16px;padding:20px;">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:#7B84A3;font-weight:700;margin-bottom:16px;">Tarefas por etapa</div>
+        ${chartHtml || '<div style="color:#7B84A3;font-size:12px;">Sem dados.</div>'}
+      </div>`;
+  }
+
+  function buildReportImageHtml(){
+    const { weekday, dateStr } = reportHeaderParts();
+    const route = parseRoute();
+    const inner = route.type === 'setor' ? buildSectorImageBlock(route.sector) : buildGeneralImageBlock();
+    const title = route.type === 'setor' ? `Painel SGS · ${escapeHtml(route.sector)}` : 'Painel SGS';
+    return `
+      <div style="font-family:'Inter',system-ui,sans-serif; background:#EEF1FA; padding:30px; width:680px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+          <div style="width:14px;height:14px;border-radius:50%;background:#F95F45;box-shadow:0 0 0 4px #FFEDE8;"></div>
+          <div>
+            <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:26px;color:#2E3178;text-transform:uppercase;">${title}</div>
+            <div style="color:#7B84A3;font-size:12px;">${weekday} · ${dateStr}</div>
+          </div>
+        </div>
+        ${inner}
+      </div>`;
+  }
+
+  async function sendReportImage(){
+    if (!lastSummary) return;
+    const btn = document.getElementById('waImgBtn');
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ Gerando imagem...';
+    try{
+      let capture = document.getElementById('reportImageCapture');
+      if (!capture){
+        capture = document.createElement('div');
+        capture.id = 'reportImageCapture';
+        capture.style.position = 'fixed';
+        capture.style.left = '-9999px';
+        capture.style.top = '0';
+        document.body.appendChild(capture);
+      }
+      capture.innerHTML = buildReportImageHtml();
+      await new Promise(r => setTimeout(r, 80));
+      const canvas = await html2canvas(capture.firstElementChild, {scale:2, backgroundColor:'#EEF1FA'});
+      canvas.toBlob(async (blob) => {
+        btn.disabled = false;
+        btn.textContent = original;
+        if (!blob) return;
+        const file = new File([blob], 'relatorio-demandas.png', {type:'image/png'});
+        let shared = false;
+        if (navigator.canShare && navigator.canShare({files:[file]})){
+          try{
+            await navigator.share({files:[file], title:'Relatório de Demandas'});
+            shared = true;
+          }catch(e){ shared = true; } // usuário cancelou o compartilhamento
+        }
+        if (!shared){
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = 'relatorio-demandas.png';
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 4000);
+          alert('Imagem baixada. Abra o WhatsApp e anexe o arquivo "relatorio-demandas.png" na conversa.');
+        }
+      }, 'image/png');
+    }catch(err){
+      btn.disabled = false;
+      btn.textContent = original;
+      alert('Não consegui gerar a imagem agora. Tente novamente.');
+    }
+  }
+  document.getElementById('waImgBtn').addEventListener('click', sendReportImage);
   document.getElementById('waOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'waOverlay') closeWhatsAppMenu();
   });
