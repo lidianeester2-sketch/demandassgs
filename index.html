@@ -1139,6 +1139,40 @@
     return name.length > n ? name.slice(0, n) + '.' : name;
   }
 
+  function computeOverallStatus(total, atrasos, alertas){
+    const pctAtrasos = total > 0 ? (atrasos / total) * 100 : 0;
+    const pctAlerta = total > 0 ? (alertas / total) * 100 : 0;
+    if (pctAtrasos > 10) return { label: 'Crítico', color: '#B8392F', bg: '#FBE7E5' };
+    if (pctAlerta > 30) return { label: 'Em Alerta', color: '#C6890F', bg: '#FBF0DE' };
+    return { label: 'Em Dia', color: '#2F8551', bg: '#E4F1E9' };
+  }
+  function statusBadgeHtml(status){
+    return `<div style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;background:${status.bg};color:${status.color};font-weight:800;font-size:11.5px;white-space:nowrap;">
+      <span style="width:8px;height:8px;border-radius:50%;background:${status.color};"></span>${status.label}
+    </div>`;
+  }
+  function statCardHtml(icon, label, value, color, big){
+    const fs = big ? '30px' : '21px';
+    return `
+      <div style="flex:1;background:#fff;border-radius:14px;padding:14px 10px 12px;text-align:center;box-shadow:0 1px 4px rgba(20,24,40,.08);border-top:4px solid ${color};">
+        <div style="font-size:15px;margin-bottom:2px;">${icon}</div>
+        <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:${fs};color:${color};line-height:1;">${value}</div>
+        <div style="font-size:8px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-top:5px;">${label}</div>
+      </div>`;
+  }
+  function sectionCardHtml(title, inner){
+    return `
+      <div style="background:#fff;border-radius:16px;padding:16px 18px;margin-bottom:14px;box-shadow:0 1px 4px rgba(20,24,40,.08);">
+        <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:1.1px;color:#5C6379;font-weight:800;margin-bottom:13px;">${title}</div>
+        ${inner}
+      </div>`;
+  }
+  function reportLogoImgHtml(){
+    const logoEl = document.querySelector('.stitle-logo');
+    if (!logoEl || !logoEl.src) return '';
+    return `<img src="${logoEl.src}" style="width:24px;height:auto;display:block;">`;
+  }
+
   function buildGeneralImageBlock(){
     const sectorRows = [];
     let totalDemandas = 0, totalAtrasos = 0, totalAlertas = 0;
@@ -1158,7 +1192,7 @@
     });
 
     const maxTotal = Math.max(1, ...sectorRows.map(r => r.total));
-    const maxAtrasos = Math.max(1, ...sectorRows.map(r => r.atrasos));
+    const overallStatus = computeOverallStatus(totalDemandas, totalAtrasos, totalAlertas);
 
     // legenda por setor (barra proporcional ao total de demandas)
     const legendHtml = sectorRows.map((r,i) => {
@@ -1179,21 +1213,20 @@
       {color:'#C6890F', value: statusTotals['Alerta']||0},
       {color:'#8A93A8', value: totalDemandas - (statusTotals['Expirado']||0) - (statusTotals['Crítico']||0) - (statusTotals['Alerta']||0)}
     ];
-    const donut = donutHtml(donutSegs, 118, 76, `<div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:20px;color:#20243A;">${totalDemandas}</div><div style="font-size:8px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.5px;">total</div></div>`);
+    const donut = donutHtml(donutSegs, 112, 72, `<div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:19px;color:#20243A;">${totalDemandas}</div><div style="font-size:7.5px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.5px;">total</div></div>`);
     const donutLegend = [
       {c:'#7A2E45', l:'Expirado'}, {c:'#B8392F', l:'Crítico'}, {c:'#C6890F', l:'Alerta'}, {c:'#8A93A8', l:'No prazo'}
     ].map(x => `<div style="display:flex;align-items:center;gap:6px;font-size:9.5px;color:#20243A;font-weight:700;margin-bottom:6px;"><span style="width:9px;height:9px;border-radius:50%;background:${x.c};display:inline-block;box-shadow:0 0 0 2px #fff, 0 0 0 3px ${x.c};"></span>${x.l}</div>`).join('');
 
-    // barras: atrasos por setor
-    const palette = ['#2E3178','#F95F45','#C6890F','#B8392F','#7A2E45','#2F8551','#8A93A8'];
-    const barsHtml = sectorRows.map((r,i) => {
+    // barras: atrasos por setor — só entra quem tem atraso
+    const atrasadosRows = sectorRows.filter(r => r.atrasos > 0).sort((a,b) => b.atrasos - a.atrasos);
+    const maxAtrasos = Math.max(1, ...atrasadosRows.map(r => r.atrasos));
+    const barsHtml = atrasadosRows.map(r => {
       const h = Math.round((r.atrasos / maxAtrasos) * 78) || 4;
-      const color = r.atrasos > 0 ? '#B8392F' : palette[i % 7];
-      const opacity = r.atrasos > 0 ? 1 : 0.35;
       return `
         <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;">
           <div style="font-size:10.5px;color:#20243A;font-weight:800;">${r.atrasos}</div>
-          <div style="width:22px;height:${h}px;background:${color};opacity:${opacity};border-radius:6px 6px 3px 3px;box-shadow:0 2px 4px rgba(20,24,40,.15);"></div>
+          <div style="width:24px;height:${h}px;background:#B8392F;border-radius:6px 6px 3px 3px;box-shadow:0 2px 4px rgba(184,57,47,.3);"></div>
           <div style="font-size:8.5px;color:#5C6379;font-weight:700;text-align:center;line-height:1.2;">${escapeHtml(abbrev(r.sector, 6))}</div>
         </div>`;
     }).join('');
@@ -1203,12 +1236,12 @@
       const emDia = Math.max(0, r.total - r.atrasos - r.alertas);
       const pct = r.total > 0 ? Math.round((emDia / r.total) * 100) : 100;
       const color = pct >= 80 ? '#2F8551' : pct >= 50 ? '#C6890F' : '#B8392F';
-      const g = donutHtml([{color, value: pct}, {color:'#E2E5F0', value: 100-pct}], 58, 34,
-        `<div style="font-size:11px;font-weight:800;color:#20243A;">${pct}%</div>`);
+      const g = donutHtml([{color, value: pct}, {color:'#E2E5F0', value: 100-pct}], 56, 33,
+        `<div style="font-size:10.5px;font-weight:800;color:#20243A;">${pct}%</div>`);
       return `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;">${g}<div style="font-size:8.5px;color:#20243A;font-weight:700;text-align:center;">${escapeHtml(abbrev(r.sector, 6))}</div></div>`;
     }).join('');
 
-    return { totalDemandas, totalAtrasos, totalAlertas, legendHtml, donut, donutLegend, barsHtml, gaugesHtml };
+    return { totalDemandas, totalAtrasos, totalAlertas, overallStatus, legendHtml, donut, donutLegend, barsHtml, hasAtrasos: atrasadosRows.length > 0, gaugesHtml };
   }
 
   function buildSectorImageBlock(sector){
@@ -1221,6 +1254,7 @@
     items.forEach(it => { statusCounts[it.status] = (statusCounts[it.status]||0)+1; });
     const atrasos = (statusCounts['Expirado']||0) + (statusCounts['Crítico']||0);
     const alertas = statusCounts['Alerta']||0;
+    const overallStatus = computeOverallStatus(items.length, atrasos, alertas);
 
     const donutSegs = [
       {color:'#7A2E45', value: statusCounts['Expirado']||0},
@@ -1228,7 +1262,7 @@
       {color:'#C6890F', value: statusCounts['Alerta']||0},
       {color:'#8A93A8', value: items.length - atrasos - alertas}
     ];
-    const donut = donutHtml(donutSegs, 118, 76, `<div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:20px;color:#20243A;">${items.length}</div><div style="font-size:8px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.5px;">total</div></div>`);
+    const donut = donutHtml(donutSegs, 112, 72, `<div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:19px;color:#20243A;">${items.length}</div><div style="font-size:7.5px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.5px;">total</div></div>`);
     const donutLegend = [
       {c:'#7A2E45', l:'Expirado'}, {c:'#B8392F', l:'Crítico'}, {c:'#C6890F', l:'Alerta'}, {c:'#8A93A8', l:'No prazo'}
     ].map(x => `<div style="display:flex;align-items:center;gap:6px;font-size:9.5px;color:#20243A;font-weight:700;margin-bottom:6px;"><span style="width:9px;height:9px;border-radius:50%;background:${x.c};display:inline-block;box-shadow:0 0 0 2px #fff, 0 0 0 3px ${x.c};"></span>${x.l}</div>`).join('');
@@ -1244,96 +1278,89 @@
         <div style="width:18px;text-align:right;font-size:10.5px;color:#20243A;font-weight:700;">${n}</div>
       </div>`).join('');
 
-    return { total: items.length, atrasos, alertas, donut, donutLegend, etapaHtml };
+    return { total: items.length, atrasos, alertas, overallStatus, donut, donutLegend, etapaHtml };
   }
 
   function buildReportImageHtml(){
     const { weekday, dateStr } = reportHeaderParts();
     const route = parseRoute();
+    const logoImg = reportLogoImgHtml();
 
     if (route.type === 'setor'){
       const b = buildSectorImageBlock(route.sector);
       if (b.empty){
         return `<div style="font-family:'Inter',sans-serif;background:#F5F6FA;padding:26px;width:460px;color:#9AA1B8;">Sem dados no momento.</div>`;
       }
+      const statsRow = `
+        <div style="display:flex;gap:10px;margin-bottom:18px;">
+          ${statCardHtml('📋','Demandas', b.total, '#2E3178', false)}
+          ${statCardHtml('🔴','Atrasos', b.atrasos, '#B8392F', true)}
+          ${statCardHtml('⚠️','Em Alerta', b.alertas, '#C6890F', true)}
+        </div>`;
+      const statusEtapa = sectionCardHtml('Tarefas por Etapa', b.etapaHtml || '<div style="color:#9AA1B8;font-size:11px;">Sem dados.</div>');
+      const statusDonut = sectionCardHtml('Status', `
+        <div style="display:flex;justify-content:center;">${b.donut}</div>
+        <div style="margin-top:10px;">${b.donutLegend}</div>`);
       return `
         <div style="font-family:'Inter',system-ui,sans-serif; background:#F5F6FA; width:460px; border:2px solid #20243A; border-radius:18px; overflow:hidden;">
           <div style="height:8px;background:linear-gradient(90deg,#2E3178,#F95F45);"></div>
-          <div style="padding:24px 26px 26px;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
-            <div>
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                <div style="width:6px;height:6px;border-radius:50%;background:#F95F45;"></div>
-                <div style="font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#9AA1B8;font-weight:700;">${escapeHtml(route.sector)}</div>
+          <div style="padding:22px 24px 24px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+              <div style="display:flex;align-items:flex-start;gap:10px;">
+                ${logoImg}
+                <div>
+                  <div style="font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;color:#9AA1B8;font-weight:700;margin-bottom:2px;">${escapeHtml(route.sector)}</div>
+                  <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:21px;color:#20243A;letter-spacing:.2px;line-height:1.1;">Relatório Diário SGS</div>
+                  <div style="color:#9AA1B8;font-size:10px;margin-top:3px;">${weekday} · ${dateStr}</div>
+                </div>
               </div>
-              <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:24px;color:#20243A;letter-spacing:.2px;line-height:1.05;">RELATÓRIO<br>DIÁRIO</div>
-              <div style="color:#9AA1B8;font-size:10.5px;margin-top:4px;">${weekday} · ${dateStr}</div>
+              ${statusBadgeHtml(b.overallStatus)}
             </div>
-            <div style="text-align:right;">
-              <div style="margin-bottom:10px;"><div style="font-size:8.5px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.8px;">Demandas</div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:19px;color:#2E3178;">${b.total}</div></div>
-              <div style="margin-bottom:10px;"><div style="font-size:8.5px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.8px;">Atrasos</div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:19px;color:#B8392F;">${b.atrasos}</div></div>
-              <div><div style="font-size:8.5px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.8px;">Em Alerta</div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:19px;color:#C6890F;">${b.alertas}</div></div>
-            </div>
-          </div>
-          <div style="height:2px;background:#20243A;opacity:.12;margin-bottom:20px;"></div>
-          <div style="display:flex;gap:18px;margin-bottom:4px;">
-            <div style="flex:1;">
-              <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:#20243A;font-weight:700;margin-bottom:12px;">Tarefas por Etapa</div>
-              ${b.etapaHtml || '<div style="color:#9AA1B8;font-size:11px;">Sem dados.</div>'}
-            </div>
-            <div style="width:140px;text-align:center;">
-              <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:#20243A;font-weight:700;margin-bottom:12px;">Status</div>
-              <div style="display:flex;justify-content:center;">${b.donut}</div>
-              <div style="margin-top:10px;text-align:left;display:inline-block;">${b.donutLegend}</div>
+            ${statsRow}
+            <div style="display:flex;gap:14px;">
+              <div style="flex:1;">${statusEtapa}</div>
+              <div style="width:150px;">${statusDonut}</div>
             </div>
           </div>
-        </div>
         </div>`;
     }
 
     const g = buildGeneralImageBlock();
+    const statsRow = `
+      <div style="display:flex;gap:10px;margin-bottom:18px;">
+        ${statCardHtml('📋','Demandas', g.totalDemandas, '#2E3178', false)}
+        ${statCardHtml('🔴','Atrasos', g.totalAtrasos, '#B8392F', true)}
+        ${statCardHtml('⚠️','Em Alerta', g.totalAlertas, '#C6890F', true)}
+      </div>`;
+    const setorDonutRow = `
+      <div style="display:flex;gap:14px;margin-bottom:0;">
+        <div style="flex:1;">${sectionCardHtml('Demandas por Setor', g.legendHtml)}</div>
+        <div style="width:150px;">${sectionCardHtml('Status Geral', `<div style="display:flex;justify-content:center;">${g.donut}</div><div style="margin-top:10px;">${g.donutLegend}</div>`)}</div>
+      </div>`;
+    const barsSection = sectionCardHtml('Atrasos por Setor', g.hasAtrasos
+      ? `<div style="display:flex;align-items:flex-end;gap:6px;height:110px;">${g.barsHtml}</div>`
+      : `<div style="display:flex;align-items:center;gap:8px;color:#2F8551;font-weight:700;font-size:12px;">✅ Nenhum setor com atraso hoje</div>`);
+    const gaugesSection = sectionCardHtml('% Em Dia por Setor', `<div style="display:flex;justify-content:space-between;flex-wrap:wrap;row-gap:14px;">${g.gaugesHtml}</div>`);
+
     return `
       <div style="font-family:'Inter',system-ui,sans-serif; background:#F5F6FA; width:460px; border:2px solid #20243A; border-radius:18px; overflow:hidden;">
-          <div style="height:8px;background:linear-gradient(90deg,#2E3178,#F95F45);"></div>
-          <div style="padding:24px 26px 26px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
-          <div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-              <div style="width:6px;height:6px;border-radius:50%;background:#F95F45;"></div>
-              <div style="font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#9AA1B8;font-weight:700;">Resumo geral</div>
+        <div style="height:8px;background:linear-gradient(90deg,#2E3178,#F95F45);"></div>
+        <div style="padding:22px 24px 24px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+            <div style="display:flex;align-items:flex-start;gap:10px;">
+              ${logoImg}
+              <div>
+                <div style="font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;color:#9AA1B8;font-weight:700;margin-bottom:2px;">Resumo geral</div>
+                <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:21px;color:#20243A;letter-spacing:.2px;line-height:1.1;">Relatório Diário SGS</div>
+                <div style="color:#9AA1B8;font-size:10px;margin-top:3px;">${weekday} · ${dateStr}</div>
+              </div>
             </div>
-            <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:24px;color:#20243A;letter-spacing:.2px;line-height:1.05;">RELATÓRIO<br>DIÁRIO</div>
-            <div style="color:#9AA1B8;font-size:10.5px;margin-top:4px;">${weekday} · ${dateStr}</div>
+            ${statusBadgeHtml(g.overallStatus)}
           </div>
-          <div style="text-align:right;">
-            <div style="margin-bottom:10px;"><div style="font-size:8.5px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.8px;">Total de Demandas</div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:19px;color:#2E3178;">${g.totalDemandas}</div></div>
-            <div style="margin-bottom:10px;"><div style="font-size:8.5px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.8px;">Atrasos</div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:19px;color:#B8392F;">${g.totalAtrasos}</div></div>
-            <div><div style="font-size:8.5px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.8px;">Em Alerta</div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:19px;color:#C6890F;">${g.totalAlertas}</div></div>
-          </div>
-        </div>
-        <div style="height:2px;background:#20243A;opacity:.12;margin-bottom:20px;"></div>
-
-        <div style="display:flex;gap:18px;margin-bottom:22px;">
-          <div style="flex:1;">
-            <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:#20243A;font-weight:700;margin-bottom:12px;">Demandas por Setor</div>
-            ${g.legendHtml}
-          </div>
-          <div style="width:140px;text-align:center;">
-            <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:#20243A;font-weight:700;margin-bottom:12px;">Status Geral</div>
-            <div style="display:flex;justify-content:center;">${g.donut}</div>
-            <div style="margin-top:10px;text-align:left;display:inline-block;">${g.donutLegend}</div>
-          </div>
-        </div>
-
-        <div style="margin-bottom:22px;">
-          <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:#20243A;font-weight:700;margin-bottom:14px;">Atrasos por Setor</div>
-          <div style="display:flex;align-items:flex-end;gap:6px;height:110px;">${g.barsHtml}</div>
-        </div>
-
-        <div>
-          <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:#20243A;font-weight:700;margin-bottom:14px;">% Em Dia por Setor</div>
-          <div style="display:flex;justify-content:space-between;">${g.gaugesHtml}</div>
-        </div>
+          ${statsRow}
+          ${setorDonutRow}
+          ${barsSection}
+          ${gaugesSection}
         </div>
       </div>`;
   }
