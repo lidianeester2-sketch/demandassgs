@@ -465,22 +465,28 @@
   const REMOTE_KV_URL = "https://script.google.com/macros/s/AKfycbxiHpKiCdJA-pJCsw0dkFD2U2SzFV-3GjB1UfvZoDtXADu1bXsAyCP9DWJGIucsRhvF/exec";
   function remoteConfigured(){ return REMOTE_KV_URL && !REMOTE_KV_URL.includes('COLE_AQUI'); }
 
+  function fetchWithTimeout(url, opts, ms){
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    return fetch(url, Object.assign({}, opts, {signal: controller.signal}))
+      .finally(() => clearTimeout(timer));
+  }
   async function kvGet(remoteKey, localKey){
     if (remoteConfigured()){
       try{
-        const res = await fetch(`${REMOTE_KV_URL}?key=${encodeURIComponent(remoteKey)}&_=${Date.now()}`);
+        const res = await fetchWithTimeout(`${REMOTE_KV_URL}?key=${encodeURIComponent(remoteKey)}&_=${Date.now()}`, {}, 6000);
         if (res.ok){
           const text = await res.text();
           if (text) return text;
         }
-      }catch(e){ /* sem internet ou script fora do ar: cai para o local */ }
+      }catch(e){ /* sem internet, script fora do ar ou demorou demais: cai para o local */ }
     }
     try{ return localStorage.getItem(localKey); }catch(e){ return null; }
   }
   async function kvSet(remoteKey, localKey, value){
     try{ localStorage.setItem(localKey, value); }catch(e){}
     if (remoteConfigured()){
-      try{ await fetch(`${REMOTE_KV_URL}?key=${encodeURIComponent(remoteKey)}`, {method:'POST', body:value}); }
+      try{ await fetchWithTimeout(`${REMOTE_KV_URL}?key=${encodeURIComponent(remoteKey)}`, {method:'POST', body:value}, 6000); }
       catch(e){ /* falha silenciosa: fica salvo local e tenta de novo na próxima vez */ }
     }
   }
@@ -1639,8 +1645,7 @@
 
   async function refresh(){
     if (remoteConfigured()){
-      await loadMarks();
-      await loadProductivity();
+      await Promise.all([loadMarks(), loadProductivity()]);
     }
     lastSummary = await buildSummary();
     reconcileMarks(lastSummary);
@@ -1759,9 +1764,8 @@
 
   (async function start(){
     buildSidebarNav();
-    await loadMarks();
     loadSectorOrder();
-    await loadProductivity();
+    await Promise.all([loadMarks(), loadProductivity()]);
     tickClock();
     setInterval(tickClock, 1000);
     await refresh();
