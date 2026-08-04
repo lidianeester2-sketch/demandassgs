@@ -554,6 +554,7 @@
     if (marksStore.signature !== sig){
       marksStore = { signature: sig, marks: {} };
       saveMarks();
+      captureProductivitySnapshot(summary);
     }
   }
   function markKey(sector, processo){ return sector + '||' + processo; }
@@ -565,6 +566,71 @@
     const cur = marksStore.marks[key] || { feito:false, passadoPara:'' };
     marksStore.marks[key] = Object.assign({}, cur, patch);
     saveMarks();
+  }
+
+  // ---------- produtividade por setor (registro automático a cada relatório) ----------
+  // Toda vez que os dados da planilha mudam (ou seja, você lançou um novo
+  // relatório), guardamos uma "foto" de quais protocolos estavam pendentes
+  // em cada setor. A foto é classificada como Manhã / Tarde / Noite
+  // conforme o horário, e cada dia guarda até 3 fotos (a primeira de cada
+  // período — se você atualizar de novo dentro do mesmo período, não
+  // sobrescreve, pra manter o "antes e depois" estável).
+  const PROD_KEY = 'sgs_produtividade_v1';
+  let productivityStore = {};
+
+  function loadProductivity(){
+    try{
+      const raw = localStorage.getItem(PROD_KEY);
+      if (raw) productivityStore = JSON.parse(raw);
+    }catch(e){ productivityStore = {}; }
+  }
+  function saveProductivity(){
+    try{
+      const keys = Object.keys(productivityStore).sort();
+      while (keys.length > 30){ delete productivityStore[keys.shift()]; }
+      localStorage.setItem(PROD_KEY, JSON.stringify(productivityStore));
+    }catch(e){}
+  }
+  function todayKey(){ return new Date().toISOString().slice(0,10); }
+  function currentPeriod(){
+    const h = new Date().getHours();
+    if (h < 12) return 'manha';
+    if (h < 18) return 'tarde';
+    return 'noite';
+  }
+  function periodLabel(p){ return {manha:'Manhã', tarde:'Tarde', noite:'Após o expediente'}[p] || p; }
+
+  function captureProductivitySnapshot(summary){
+    const date = todayKey();
+    const period = currentPeriod();
+    if (!productivityStore[date]) productivityStore[date] = {};
+    if (productivityStore[date][period]) return; // já registrado esse período hoje
+
+    const sectors = {};
+    Object.keys(SECTOR_SHEETS).forEach(sector => {
+      const data = summary.sectors[sector];
+      if (!data || data.error) return;
+      sectors[sector] = { total: data.items.length, items: data.items.map(it => it.processo) };
+    });
+    productivityStore[date][period] = { capturedAt: new Date().toISOString(), sectors };
+    saveProductivity();
+  }
+
+  function computeProductivityDiff(prev, curr){
+    const result = {};
+    const sectorNames = new Set([
+      ...Object.keys((prev && prev.sectors) || {}),
+      ...Object.keys((curr && curr.sectors) || {})
+    ]);
+    sectorNames.forEach(sector => {
+      const prevItems = new Set(((prev && prev.sectors && prev.sectors[sector]) || {}).items || []);
+      const currItems = new Set(((curr && curr.sectors && curr.sectors[sector]) || {}).items || []);
+      let novos = 0, resolvidos = 0;
+      currItems.forEach(p => { if (!prevItems.has(p)) novos++; });
+      prevItems.forEach(p => { if (!currItems.has(p)) resolvidos++; });
+      result[sector] = { pendentesAntes: prevItems.size, pendentesAgora: currItems.size, novos, resolvidos };
+    });
+    return result;
   }
 
   function styleForStatus(status){ return STATUS_STYLES[status] || DEFAULT_STYLE; }
@@ -974,6 +1040,70 @@
     renderCurrentRoute();
   }
 
+  function renderRelatorioGeralPage(){
+    const mainContent = document.getElementById('mainContent');
+    const date = todayKey();
+    const day = productivityStore[date] || {};
+    const periods = ['manha', 'tarde', 'noite'];
+    const sectorList = Object.keys(SECTOR_SHEETS);
+
+    let html = `
+      <div class="sector-header" style="--sev-solid:var(--accent);">
+        <h2>Relatório Geral</h2>
+        <div style="color:rgba(255,255,255,.85);font-size:13px;max-width:520px;">
+          Produtividade do dia, registrada automaticamente sempre que você lança um novo relatório
+          (atualiza a planilha). Compara quem estava pendente de manhã com quem ainda está pendente
+          à tarde e à noite — mostrando o que foi resolvido e o que é novo.
+        </div>
+      </div>`;
+
+    let prev = null;
+    periods.forEach((period, idx) => {
+      const snap = day[period];
+      const isFirst = idx === 0;
+      const diff = (!isFirst && snap && prev) ? computeProductivityDiff(prev, snap) : null;
+
+      html += `<div class="card" style="margin-bottom:16px;">
+        <div class="card-head" style="margin-bottom:${snap ? '14px' : '0'};">
+          <h2 style="font-size:19px;">${periodLabel(period)}</h2>
+          ${snap ? `<div class="led"><span class="bulb"></span>Registrado às ${new Date(snap.capturedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+        </div>`;
+
+      if (!snap){
+        html += `<div class="empty-sector">Ainda não registrado hoje. Isso acontece sozinho assim que você atualizar a planilha ${period === 'manha' ? 'pela manhã' : period === 'tarde' ? 'à tarde' : 'após o expediente'}.</div>`;
+      } else {
+        html += `<div style="display:flex;flex-direction:column;gap:8px;">`;
+        sectorList.forEach(sector => {
+          const s = snap.sectors[sector];
+          if (!s) return;
+          if (isFirst){
+            html += `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#FAFBFC;border:1px solid var(--panel-border);border-radius:10px;">
+                <span style="font-weight:700;font-size:13.5px;">${escapeHtml(sector)}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted);">${s.total} pendente${s.total===1?'':'s'}</span>
+              </div>`;
+          } else {
+            const d = diff[sector] || {novos:0, resolvidos:0, pendentesAgora:s.total};
+            html += `
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#FAFBFC;border:1px solid var(--panel-border);border-radius:10px;flex-wrap:wrap;">
+                <span style="font-weight:700;font-size:13.5px;">${escapeHtml(sector)}</span>
+                <span style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <span class="mark-tag" style="background:var(--gray-bg);color:var(--gray-text);">${d.pendentesAgora} pendente${d.pendentesAgora===1?'':'s'}</span>
+                  <span class="mark-tag mark-done">+${d.novos} novo${d.novos===1?'':'s'}</span>
+                  <span class="mark-tag" style="background:var(--green-bg);color:var(--green-text);">✓ ${d.resolvidos} resolvido${d.resolvidos===1?'':'s'}</span>
+                </span>
+              </div>`;
+          }
+        });
+        html += `</div>`;
+        prev = snap;
+      }
+      html += `</div>`;
+    });
+
+    mainContent.innerHTML = html;
+  }
+
   // ---------- envio por WhatsApp ----------
   function etapaBreakdown(items){
     if (items.length === 0) return '';
@@ -1147,7 +1277,7 @@
   function computeOverallStatus(total, atrasos, alertas){
     const pctAtrasos = total > 0 ? (atrasos / total) * 100 : 0;
     const pctAlerta = total > 0 ? (alertas / total) * 100 : 0;
-    if (pctAtrasos > 10) return { label: 'Crítico', color: '#B8392F', bg: '#FBE7E5' };
+    if (atrasos >= 15 || pctAtrasos > 10) return { label: 'Crítico', color: '#B8392F', bg: '#FBE7E5' };
     if (pctAlerta > 30) return { label: 'Em Alerta', color: '#C6890F', bg: '#FBF0DE' };
     return { label: 'Em Dia', color: '#2F8551', bg: '#E4F1E9' };
   }
@@ -1439,6 +1569,8 @@
       <a href="#/painel" data-key="painel"><span class="navdot"></span><span class="nav-label">Painel das Demandas</span></a>
       <div class="divider"></div>
       ${Object.keys(SECTOR_SHEETS).map(s => `<a href="#/setor/${encodeURIComponent(s)}" data-key="setor:${escapeHtml(s)}"><span class="navdot"></span><span class="nav-label">${escapeHtml(s)}</span><span class="nav-badge" id="navbadge-${encodeURIComponent(s)}">–</span></a>`).join('')}
+      <div class="divider"></div>
+      <a href="#/relatorio-geral" data-key="relatorio-geral"><span class="navdot"></span><span class="nav-label">Relatório Geral</span></a>
     `;
   }
 
@@ -1461,16 +1593,20 @@
     if (parts[0] === 'setor' && parts[1]){
       return {type:'setor', sector: decodeURIComponent(parts[1])};
     }
+    if (parts[0] === 'relatorio-geral'){
+      return {type:'relatorio-geral'};
+    }
     return {type:'painel'};
   }
 
   function renderCurrentRoute(){
     const route = parseRoute();
-    const activeKey = route.type === 'setor' ? 'setor:'+route.sector : 'painel';
+    const activeKey = route.type === 'setor' ? 'setor:'+route.sector : route.type;
     document.querySelectorAll('#sidebarNav a').forEach(a => {
       a.classList.toggle('active', a.dataset.key === activeKey);
     });
     if (route.type === 'setor') renderSectorPage(route.sector);
+    else if (route.type === 'relatorio-geral') renderRelatorioGeralPage();
     else renderHome();
   }
 
@@ -1595,6 +1731,7 @@
   buildSidebarNav();
   loadMarks();
   loadSectorOrder();
+  loadProductivity();
   tickClock();
   setInterval(tickClock, 1000);
   refresh();
