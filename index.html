@@ -1114,25 +1114,30 @@
   document.getElementById('waBtn').addEventListener('click', openWhatsAppMenu);
 
   // ---------- relatório em imagem (estilo infográfico) ----------
-  function conicGradientCss(segments){
-    // segments: [{color, value}] -> string de conic-gradient com paradas cumulativas
-    const total = segments.reduce((a,s) => a + s.value, 0) || 1;
-    let acc = 0;
-    const stops = segments.map(s => {
-      const start = (acc / total) * 100;
-      acc += s.value;
-      const end = (acc / total) * 100;
-      return `${s.color} ${start}% ${end}%`;
-    });
-    return `conic-gradient(${stops.join(',')})`;
-  }
   function donutHtml(segments, size, holeSize, centerHtml){
-    const bg = segments.some(s => s.value > 0) ? conicGradientCss(segments) : '#E2E5F0';
-    const hole = (size - holeSize) / 2;
+    const strokeWidth = (size - holeSize) / 2;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const total = segments.reduce((a,s) => a + s.value, 0);
+
+    let circlesSvg;
+    if (!total){
+      circlesSvg = `<circle cx="${size/2}" cy="${size/2}" r="${radius}" fill="none" stroke="#E2E5F0" stroke-width="${strokeWidth}"/>`;
+    } else {
+      let offsetAcc = 0;
+      circlesSvg = segments.filter(s => s.value > 0).map(s => {
+        const dash = (s.value / total) * circumference;
+        const gap = circumference - dash;
+        const circle = `<circle cx="${size/2}" cy="${size/2}" r="${radius}" fill="none" stroke="${s.color}" stroke-width="${strokeWidth}" stroke-dasharray="${dash} ${gap}" stroke-dashoffset="${-offsetAcc}" transform="rotate(-90 ${size/2} ${size/2})"/>`;
+        offsetAcc += dash;
+        return circle;
+      }).join('');
+    }
+
     return `
       <div style="position:relative;width:${size}px;height:${size}px;">
-        <div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};box-shadow:0 0 0 2px #fff inset, 0 2px 6px rgba(20,24,40,.12);"></div>
-        <div style="position:absolute;top:${hole}px;left:${hole}px;width:${holeSize}px;height:${holeSize}px;border-radius:50%;background:#F5F6FA;box-shadow:0 0 0 2px #fff;display:flex;align-items:center;justify-content:center;text-align:center;">${centerHtml}</div>
+        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${circlesSvg}</svg>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;">${centerHtml}</div>
       </div>`;
   }
   function abbrev(name, n){
@@ -1200,7 +1205,7 @@
       return `
         <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px;">
           <div style="width:11px;height:11px;border-radius:50%;background:${color};flex:none;box-shadow:0 0 0 2px #fff, 0 0 0 3px ${color};"></div>
-          <div style="width:88px;font-size:11px;color:#20243A;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(r.sector)}</div>
+          <div style="width:96px;font-size:11px;color:#20243A;font-weight:700;white-space:nowrap;">${escapeHtml(abbrev(r.sector, 13))}</div>
           <div style="flex:1;background:#E2E5F2;border-radius:6px;height:10px;overflow:hidden;"><div style="height:100%;width:${(r.total/maxTotal*100)}%;background:${color};border-radius:6px;"></div></div>
           <div style="width:22px;text-align:right;font-size:11.5px;color:#20243A;font-weight:800;">${r.total}</div>
         </div>`;
@@ -1224,7 +1229,7 @@
     const barsHtml = atrasadosRows.map(r => {
       const h = Math.round((r.atrasos / maxAtrasos) * 78) || 4;
       return `
-        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:0 0 54px;">
           <div style="font-size:10.5px;color:#20243A;font-weight:800;">${r.atrasos}</div>
           <div style="width:24px;height:${h}px;background:#B8392F;border-radius:6px 6px 3px 3px;box-shadow:0 2px 4px rgba(184,57,47,.3);"></div>
           <div style="font-size:8.5px;color:#5C6379;font-weight:700;text-align:center;line-height:1.2;">${escapeHtml(abbrev(r.sector, 6))}</div>
@@ -1273,7 +1278,7 @@
     const maxE = etapaEntries.length ? etapaEntries[0][1] : 1;
     const etapaHtml = etapaEntries.map(([k,n]) => `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-        <div style="width:110px;font-size:10.5px;color:#20243A;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(k)}</div>
+        <div style="width:110px;font-size:10.5px;color:#20243A;font-weight:600;white-space:nowrap;">${escapeHtml(abbrev(k, 15))}</div>
         <div style="flex:1;background:#E2E5F2;border-radius:6px;height:11px;overflow:hidden;"><div style="height:100%;width:${(n/maxE*100)}%;background:#2E3178;border-radius:6px;"></div></div>
         <div style="width:18px;text-align:right;font-size:10.5px;color:#20243A;font-weight:700;">${n}</div>
       </div>`).join('');
@@ -1338,9 +1343,9 @@
         <div style="width:150px;">${sectionCardHtml('Status Geral', `<div style="display:flex;justify-content:center;">${g.donut}</div><div style="margin-top:10px;">${g.donutLegend}</div>`)}</div>
       </div>`;
     const barsSection = sectionCardHtml('Atrasos por Setor', g.hasAtrasos
-      ? `<div style="display:flex;align-items:flex-end;gap:6px;height:110px;">${g.barsHtml}</div>`
+      ? `<div style="display:flex;align-items:flex-end;justify-content:center;gap:16px;height:110px;">${g.barsHtml}</div>`
       : `<div style="display:flex;align-items:center;gap:8px;color:#2F8551;font-weight:700;font-size:12px;">✅ Nenhum setor com atraso hoje</div>`);
-    const gaugesSection = sectionCardHtml('% Em Dia por Setor', `<div style="display:flex;justify-content:space-between;flex-wrap:wrap;row-gap:14px;">${g.gaugesHtml}</div>`);
+    const gaugesSection = sectionCardHtml('% Em Dia por Setor', `<div style="display:grid;grid-template-columns:repeat(4,1fr);row-gap:16px;column-gap:6px;">${g.gaugesHtml}</div>`);
 
     return `
       <div style="font-family:'Inter',system-ui,sans-serif; background:#F5F6FA; width:460px; border:2px solid #20243A; border-radius:18px; overflow:hidden;">
