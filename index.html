@@ -458,6 +458,33 @@
   // coluna Associação da planilha).
   const MOBILI_NAME = "Mobili";
 
+  // Sincronização entre computadores (opcional): cole aqui a URL do seu
+  // Apps Script (veja instruções no fim da conversa). Enquanto não
+  // configurar, tudo continua funcionando normalmente, só que salvo
+  // apenas neste computador.
+  const REMOTE_KV_URL = "https://script.google.com/macros/s/AKfycbxiHpKiCdJA-pJCsw0dkFD2U2SzFV-3GjB1UfvZoDtXADu1bXsAyCP9DWJGIucsRhvF/exec";
+  function remoteConfigured(){ return REMOTE_KV_URL && !REMOTE_KV_URL.includes('COLE_AQUI'); }
+
+  async function kvGet(remoteKey, localKey){
+    if (remoteConfigured()){
+      try{
+        const res = await fetch(`${REMOTE_KV_URL}?key=${encodeURIComponent(remoteKey)}&_=${Date.now()}`);
+        if (res.ok){
+          const text = await res.text();
+          if (text) return text;
+        }
+      }catch(e){ /* sem internet ou script fora do ar: cai para o local */ }
+    }
+    try{ return localStorage.getItem(localKey); }catch(e){ return null; }
+  }
+  async function kvSet(remoteKey, localKey, value){
+    try{ localStorage.setItem(localKey, value); }catch(e){}
+    if (remoteConfigured()){
+      try{ await fetch(`${REMOTE_KV_URL}?key=${encodeURIComponent(remoteKey)}`, {method:'POST', body:value}); }
+      catch(e){ /* falha silenciosa: fica salvo local e tenta de novo na próxima vez */ }
+    }
+  }
+
   // Pessoas que podem receber a atualização por WhatsApp. Telefone no
   // formato DDI+DDD+número, só dígitos (ex: 55 11 91234-5678 vira
   // "5511912345678"). Adicione ou remova linhas à vontade.
@@ -531,14 +558,14 @@
   const MARKS_KEY = 'sgs_marks_v1';
   let marksStore = { signature: null, marks: {} };
 
-  function loadMarks(){
+  async function loadMarks(){
     try{
-      const raw = localStorage.getItem(MARKS_KEY);
-      if (raw) marksStore = JSON.parse(raw);
+      const raw = await kvGet('marks', MARKS_KEY);
+      marksStore = raw ? JSON.parse(raw) : { signature: null, marks: {} };
     }catch(e){ marksStore = { signature: null, marks: {} }; }
   }
   function saveMarks(){
-    try{ localStorage.setItem(MARKS_KEY, JSON.stringify(marksStore)); }catch(e){}
+    kvSet('marks', MARKS_KEY, JSON.stringify(marksStore));
   }
   function computeDataSignature(summary){
     const parts = [];
@@ -578,18 +605,16 @@
   const PROD_KEY = 'sgs_produtividade_v1';
   let productivityStore = {};
 
-  function loadProductivity(){
+  async function loadProductivity(){
     try{
-      const raw = localStorage.getItem(PROD_KEY);
-      if (raw) productivityStore = JSON.parse(raw);
+      const raw = await kvGet('produtividade', PROD_KEY);
+      productivityStore = raw ? JSON.parse(raw) : {};
     }catch(e){ productivityStore = {}; }
   }
   function saveProductivity(){
-    try{
-      const keys = Object.keys(productivityStore).sort();
-      while (keys.length > 30){ delete productivityStore[keys.shift()]; }
-      localStorage.setItem(PROD_KEY, JSON.stringify(productivityStore));
-    }catch(e){}
+    const keys = Object.keys(productivityStore).sort();
+    while (keys.length > 30){ delete productivityStore[keys.shift()]; }
+    kvSet('produtividade', PROD_KEY, JSON.stringify(productivityStore));
   }
   function todayKey(){ return new Date().toISOString().slice(0,10); }
   function currentPeriod(){
@@ -1613,6 +1638,10 @@
   window.addEventListener('hashchange', renderCurrentRoute);
 
   async function refresh(){
+    if (remoteConfigured()){
+      await loadMarks();
+      await loadProductivity();
+    }
     lastSummary = await buildSummary();
     reconcileMarks(lastSummary);
     document.getElementById('updatedAt').textContent = fmtDateTime(lastSummary.updatedAt);
@@ -1728,14 +1757,16 @@
     sidebarOpenBtn.classList.remove('show');
   });
 
-  buildSidebarNav();
-  loadMarks();
-  loadSectorOrder();
-  loadProductivity();
-  tickClock();
-  setInterval(tickClock, 1000);
-  refresh();
-  setInterval(refresh, POLL_MS);
+  (async function start(){
+    buildSidebarNav();
+    await loadMarks();
+    loadSectorOrder();
+    await loadProductivity();
+    tickClock();
+    setInterval(tickClock, 1000);
+    await refresh();
+    setInterval(refresh, POLL_MS);
+  })();
   </script>
 </body>
 </html>
