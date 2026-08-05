@@ -587,7 +587,7 @@
     if (marksStore.signature !== sig){
       marksStore = { signature: sig, marks: {} };
       saveMarks();
-      captureProductivitySnapshot(summary);
+      trackProtocolMovements(summary);
     }
   }
   function markKey(sector, processo){ return sector + '||' + processo; }
@@ -601,27 +601,44 @@
     saveMarks();
   }
 
-  // ---------- produtividade por setor (registro automático a cada relatório) ----------
-  // Toda vez que os dados da planilha mudam (ou seja, você lançou um novo
-  // relatório), guardamos uma "foto" de quais protocolos estavam pendentes
-  // em cada setor. A foto é classificada como Manhã / Tarde / Noite
-  // conforme o horário, e cada dia guarda até 3 fotos (a primeira de cada
-  // período — se você atualizar de novo dentro do mesmo período, não
-  // sobrescreve, pra manter o "antes e depois" estável).
-  const PROD_KEY = 'sgs_produtividade_v1';
-  let productivityStore = {};
+  // ---------- produção por setor (rastreamento protocolo a protocolo) ----------
+  // A cada vez que os dados da planilha mudam (você lançou um novo
+  // relatório), o painel compara TODOS os protocolos com o que ele
+  // sabia da vez anterior:
+  //  - se um protocolo estava no setor A e agora está no setor B,
+  //    o setor A "produziu" (encaminhou aquele protocolo);
+  //  - se um protocolo estava em algum setor e simplesmente sumiu de
+  //    todos (não está em nenhuma aba mais), o setor onde ele estava
+  //    por último "produziu" (concluiu aquele protocolo).
+  // Cada um desses eventos fica gravado num histórico, o que permite
+  // somar a produção por dia, semana, mês etc.
+  const REGISTRY_KEY = 'sgs_registro_protocolos_v1';
+  const PRODLOG_KEY = 'sgs_producao_log_v1';
+  let protocolRegistry = {};  // processo -> {sector, updatedAt}
+  let productionLog = [];     // [{date, time, period, processo, from, to}]
 
-  async function loadProductivity(){
+  async function loadRegistry(){
     try{
-      const raw = await kvGet('produtividade', PROD_KEY);
-      productivityStore = raw ? JSON.parse(raw) : {};
-    }catch(e){ productivityStore = {}; }
+      const raw = await kvGet('registro', REGISTRY_KEY);
+      protocolRegistry = raw ? JSON.parse(raw) : {};
+    }catch(e){ protocolRegistry = {}; }
   }
-  function saveProductivity(){
-    const keys = Object.keys(productivityStore).sort();
-    while (keys.length > 30){ delete productivityStore[keys.shift()]; }
-    kvSet('produtividade', PROD_KEY, JSON.stringify(productivityStore));
+  function saveRegistry(){
+    kvSet('registro', REGISTRY_KEY, JSON.stringify(protocolRegistry));
   }
+  async function loadProductionLog(){
+    try{
+      const raw = await kvGet('producao', PRODLOG_KEY);
+      productionLog = raw ? JSON.parse(raw) : [];
+    }catch(e){ productionLog = []; }
+  }
+  function saveProductionLog(){
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 120);
+    const cutoffKey = cutoff.toISOString().slice(0,10);
+    productionLog = productionLog.filter(e => e.date >= cutoffKey);
+    kvSet('producao', PRODLOG_KEY, JSON.stringify(productionLog));
+  }
+
   function todayKey(){ return new Date().toISOString().slice(0,10); }
   function currentPeriod(){
     const h = new Date().getHours();
@@ -631,37 +648,61 @@
   }
   function periodLabel(p){ return {manha:'Manhã', tarde:'Tarde', noite:'Após o expediente'}[p] || p; }
 
-  function captureProductivitySnapshot(summary){
-    const date = todayKey();
+  function trackProtocolMovements(summary){
+    const now = new Date();
+    const dateKey = todayKey();
     const period = currentPeriod();
-    if (!productivityStore[date]) productivityStore[date] = {};
-    if (productivityStore[date][period]) return; // já registrado esse período hoje
+    const seenNow = {}; // processo -> setor atual
 
-    const sectors = {};
     Object.keys(SECTOR_SHEETS).forEach(sector => {
       const data = summary.sectors[sector];
       if (!data || data.error) return;
-      sectors[sector] = { total: data.items.length, items: data.items.map(it => it.processo) };
+      data.items.forEach(it => { seenNow[it.processo] = sector; });
     });
-    productivityStore[date][period] = { capturedAt: new Date().toISOString(), sectors };
-    saveProductivity();
+
+    const events = [];
+    Object.keys(protocolRegistry).forEach(processo => {
+      const prevSector = protocolRegistry[processo].sector;
+      const nowSector = seenNow[processo];
+      if (!nowSector){
+        events.push({date:dateKey, time:now.toISOString(), period, processo, from:prevSector, to:'CONCLUÍDO'});
+      } else if (nowSector !== prevSector){
+        events.push({date:dateKey, time:now.toISOString(), period, processo, from:prevSector, to:nowSector});
+      }
+    });
+
+    const newRegistry = {};
+    Object.keys(seenNow).forEach(processo => {
+      newRegistry[processo] = { sector: seenNow[processo], updatedAt: now.toISOString() };
+    });
+    protocolRegistry = newRegistry;
+    saveRegistry();
+
+    if (events.length){
+      productionLog = productionLog.concat(events);
+      saveProductionLog();
+    }
   }
 
-  function computeProductivityDiff(prev, curr){
-    const result = {};
-    const sectorNames = new Set([
-      ...Object.keys((prev && prev.sectors) || {}),
-      ...Object.keys((curr && curr.sectors) || {})
-    ]);
-    sectorNames.forEach(sector => {
-      const prevItems = new Set(((prev && prev.sectors && prev.sectors[sector]) || {}).items || []);
-      const currItems = new Set(((curr && curr.sectors && curr.sectors[sector]) || {}).items || []);
-      let novos = 0, resolvidos = 0;
-      currItems.forEach(p => { if (!prevItems.has(p)) novos++; });
-      prevItems.forEach(p => { if (!currItems.has(p)) resolvidos++; });
-      result[sector] = { pendentesAntes: prevItems.size, pendentesAgora: currItems.size, novos, resolvidos };
+  function startOfWeek(d){
+    const r = new Date(d); const day = r.getDay(); const diff = (day === 0 ? 6 : day - 1);
+    r.setDate(r.getDate() - diff); r.setHours(0,0,0,0); return r;
+  }
+  function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+
+  function aggregateProduction(fromDate, toDate){
+    const fromKey = fromDate.toISOString().slice(0,10);
+    const toKey = toDate.toISOString().slice(0,10);
+    const bySector = {};
+    productionLog.forEach(e => {
+      if (e.date < fromKey || e.date > toKey) return;
+      if (!bySector[e.from]) bySector[e.from] = { encaminhados:0, concluidos:0, total:0, eventos:[] };
+      if (e.to === 'CONCLUÍDO') bySector[e.from].concluidos++;
+      else bySector[e.from].encaminhados++;
+      bySector[e.from].total++;
+      bySector[e.from].eventos.push(e);
     });
-    return result;
+    return bySector;
   }
 
   function styleForStatus(status){ return STATUS_STYLES[status] || DEFAULT_STYLE; }
@@ -1071,66 +1112,74 @@
     renderCurrentRoute();
   }
 
+  let relatorioGeralRange = 'hoje'; // 'hoje' | 'semana' | 'mes'
+
+  function setRelatorioGeralRange(range){
+    relatorioGeralRange = range;
+    renderCurrentRoute();
+  }
+
   function renderRelatorioGeralPage(){
     const mainContent = document.getElementById('mainContent');
-    const date = todayKey();
-    const day = productivityStore[date] || {};
-    const periods = ['manha', 'tarde', 'noite'];
+    const now = new Date();
+    let from, to, rangeLabel;
+    if (relatorioGeralRange === 'semana'){
+      from = startOfWeek(now); to = now; rangeLabel = 'Esta semana';
+    } else if (relatorioGeralRange === 'mes'){
+      from = startOfMonth(now); to = now; rangeLabel = 'Este mês';
+    } else {
+      from = new Date(now.getFullYear(), now.getMonth(), now.getDate()); to = now; rangeLabel = 'Hoje';
+    }
+
+    const bySector = aggregateProduction(from, to);
     const sectorList = Object.keys(SECTOR_SHEETS);
+    const totalGeral = sectorList.reduce((acc, s) => acc + ((bySector[s]||{}).total||0), 0);
 
     let html = `
       <div class="sector-header" style="--sev-solid:var(--accent);">
         <h2>Relatório Geral</h2>
-        <div style="color:rgba(255,255,255,.85);font-size:13px;max-width:520px;">
-          Produtividade do dia, registrada automaticamente sempre que você lança um novo relatório
-          (atualiza a planilha). Compara quem estava pendente de manhã com quem ainda está pendente
-          à tarde e à noite — mostrando o que foi resolvido e o que é novo.
+        <div style="color:rgba(255,255,255,.85);font-size:13px;max-width:560px;">
+          Produção de cada setor, medida protocolo a protocolo: toda vez que a planilha muda, o painel
+          compara onde cada protocolo estava e onde está agora. Se ele mudou de setor, o setor de origem
+          encaminhou. Se ele sumiu de todos os setores, foi concluído.
         </div>
-      </div>`;
+      </div>
 
-    let prev = null;
-    periods.forEach((period, idx) => {
-      const snap = day[period];
-      const isFirst = idx === 0;
-      const diff = (!isFirst && snap && prev) ? computeProductivityDiff(prev, snap) : null;
+      <div class="seg" style="margin-bottom:16px;">
+        <button onclick="setRelatorioGeralRange('hoje')" class="${relatorioGeralRange==='hoje'?'active':''}">Hoje</button>
+        <button onclick="setRelatorioGeralRange('semana')" class="${relatorioGeralRange==='semana'?'active':''}">Esta Semana</button>
+        <button onclick="setRelatorioGeralRange('mes')" class="${relatorioGeralRange==='mes'?'active':''}">Este Mês</button>
+      </div>
 
-      html += `<div class="card" style="margin-bottom:16px;">
-        <div class="card-head" style="margin-bottom:${snap ? '14px' : '0'};">
-          <h2 style="font-size:19px;">${periodLabel(period)}</h2>
-          ${snap ? `<div class="led"><span class="bulb"></span>Registrado às ${new Date(snap.capturedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-head" style="margin-bottom:14px;">
+          <h2 style="font-size:19px;">${rangeLabel}</h2>
+          <div class="led"><span class="bulb"></span>${totalGeral} produzido${totalGeral===1?'':'s'} no total</div>
         </div>`;
 
-      if (!snap){
-        html += `<div class="empty-sector">Ainda não registrado hoje. Isso acontece sozinho assim que você atualizar a planilha ${period === 'manha' ? 'pela manhã' : period === 'tarde' ? 'à tarde' : 'após o expediente'}.</div>`;
-      } else {
-        html += `<div style="display:flex;flex-direction:column;gap:8px;">`;
-        sectorList.forEach(sector => {
-          const s = snap.sectors[sector];
-          if (!s) return;
-          if (isFirst){
-            html += `
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#FAFBFC;border:1px solid var(--panel-border);border-radius:10px;">
-                <span style="font-weight:700;font-size:13.5px;">${escapeHtml(sector)}</span>
-                <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted);">${s.total} pendente${s.total===1?'':'s'}</span>
-              </div>`;
-          } else {
-            const d = diff[sector] || {novos:0, resolvidos:0, pendentesAgora:s.total};
-            html += `
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#FAFBFC;border:1px solid var(--panel-border);border-radius:10px;flex-wrap:wrap;">
-                <span style="font-weight:700;font-size:13.5px;">${escapeHtml(sector)}</span>
-                <span style="display:flex;gap:8px;flex-wrap:wrap;">
-                  <span class="mark-tag" style="background:var(--gray-bg);color:var(--gray-text);">${d.pendentesAgora} pendente${d.pendentesAgora===1?'':'s'}</span>
-                  <span class="mark-tag mark-done">+${d.novos} novo${d.novos===1?'':'s'}</span>
-                  <span class="mark-tag" style="background:var(--green-bg);color:var(--green-text);">✓ ${d.resolvidos} resolvido${d.resolvidos===1?'':'s'}</span>
-                </span>
-              </div>`;
-          }
+    if (totalGeral === 0){
+      html += `<div class="empty-sector">Ainda não há produção registrada nesse período. Isso é preenchido sozinho conforme você for atualizando a planilha ao longo dos dias.</div>`;
+    } else {
+      html += `<div style="display:flex;flex-direction:column;gap:8px;">`;
+      sectorList
+        .slice()
+        .sort((a,b) => ((bySector[b]||{}).total||0) - ((bySector[a]||{}).total||0))
+        .forEach(sector => {
+          const d = bySector[sector];
+          if (!d || d.total === 0) return;
+          html += `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#FAFBFC;border:1px solid var(--panel-border);border-radius:10px;flex-wrap:wrap;">
+              <span style="font-weight:700;font-size:13.5px;">${escapeHtml(sector)}</span>
+              <span style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <span class="mark-tag mark-pass">➜ ${d.encaminhados} encaminhado${d.encaminhados===1?'':'s'}</span>
+                <span class="mark-tag mark-done">✓ ${d.concluidos} concluído${d.concluidos===1?'':'s'}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:14px;color:#20243A;">${d.total}</span>
+              </span>
+            </div>`;
         });
-        html += `</div>`;
-        prev = snap;
-      }
       html += `</div>`;
-    });
+    }
+    html += `</div>`;
 
     mainContent.innerHTML = html;
   }
@@ -1645,7 +1694,7 @@
 
   async function refresh(){
     if (remoteConfigured()){
-      await Promise.all([loadMarks(), loadProductivity()]);
+      await Promise.all([loadMarks(), loadRegistry(), loadProductionLog()]);
     }
     lastSummary = await buildSummary();
     reconcileMarks(lastSummary);
@@ -1765,7 +1814,7 @@
   (async function start(){
     buildSidebarNav();
     loadSectorOrder();
-    await Promise.all([loadMarks(), loadProductivity()]);
+    await Promise.all([loadMarks(), loadRegistry(), loadProductionLog()]);
     tickClock();
     setInterval(tickClock, 1000);
     await refresh();
