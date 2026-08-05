@@ -587,7 +587,6 @@
     if (marksStore.signature !== sig){
       marksStore = { signature: sig, marks: {} };
       saveMarks();
-      trackProtocolMovements(summary);
     }
   }
   function markKey(sector, processo){ return sector + '||' + processo; }
@@ -601,87 +600,75 @@
     saveMarks();
   }
 
-  // ---------- produção por setor (rastreamento protocolo a protocolo) ----------
-  // A cada vez que os dados da planilha mudam (você lançou um novo
-  // relatório), o painel compara TODOS os protocolos com o que ele
-  // sabia da vez anterior:
-  //  - se um protocolo estava no setor A e agora está no setor B,
-  //    o setor A "produziu" (encaminhou aquele protocolo);
-  //  - se um protocolo estava em algum setor e simplesmente sumiu de
-  //    todos (não está em nenhuma aba mais), o setor onde ele estava
-  //    por último "produziu" (concluiu aquele protocolo).
-  // Cada um desses eventos fica gravado num histórico, o que permite
-  // somar a produção por dia, semana, mês etc.
-  const REGISTRY_KEY = 'sgs_registro_protocolos_v1';
-  const PRODLOG_KEY = 'sgs_producao_log_v1';
-  let protocolRegistry = {};  // processo -> {sector, updatedAt}
-  let productionLog = [];     // [{date, time, period, processo, from, to}]
+  // ---------- produção por setor (fotos em horários fixos) ----------
+  // Em vez de reagir a cada mudança na planilha (o que quebra quando você
+  // apaga tudo pra colar de novo), o painel tira uma "foto" de quantos
+  // protocolos cada setor tem, só nesses três horários do dia. Comparando
+  // uma foto com a seguinte, dá pra ver quais protocolos mudaram de setor
+  // (isso conta como "encaminhado" pelo setor de origem). Não existe mais
+  // suposição de "sumiu = concluído" — se um protocolo não aparece na foto
+  // seguinte, ele simplesmente não entra na conta.
+  const SNAPSHOT_KEY = 'sgs_fotos_producao_v1';
+  const SNAPSHOT_SLOTS = [
+    { key:'10h30', hh:10, mm:30, label:'10h30', desc:'Demandas do dia' },
+    { key:'15h00', hh:15, mm:0,  label:'15h00', desc:'Andamento do dia' },
+    { key:'19h00', hh:19, mm:0,  label:'19h00', desc:'Relatório geral do dia' }
+  ];
+  let snapshotStore = {}; // { [data]: { '10h30': {capturedAt, sectors:{setor:{total,items:[processo]}}}, ... } }
 
-  async function loadRegistry(){
+  async function loadSnapshots(){
     try{
-      const raw = await kvGet('registro', REGISTRY_KEY);
-      protocolRegistry = raw ? JSON.parse(raw) : {};
-    }catch(e){ protocolRegistry = {}; }
+      const raw = await kvGet('fotos_producao', SNAPSHOT_KEY);
+      snapshotStore = raw ? JSON.parse(raw) : {};
+    }catch(e){ snapshotStore = {}; }
   }
-  function saveRegistry(){
-    kvSet('registro', REGISTRY_KEY, JSON.stringify(protocolRegistry));
-  }
-  async function loadProductionLog(){
-    try{
-      const raw = await kvGet('producao', PRODLOG_KEY);
-      productionLog = raw ? JSON.parse(raw) : [];
-    }catch(e){ productionLog = []; }
-  }
-  function saveProductionLog(){
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 120);
-    const cutoffKey = cutoff.toISOString().slice(0,10);
-    productionLog = productionLog.filter(e => e.date >= cutoffKey);
-    kvSet('producao', PRODLOG_KEY, JSON.stringify(productionLog));
+  function saveSnapshots(){
+    const keys = Object.keys(snapshotStore).sort();
+    while (keys.length > 45){ delete snapshotStore[keys.shift()]; }
+    kvSet('fotos_producao', SNAPSHOT_KEY, JSON.stringify(snapshotStore));
   }
 
   function todayKey(){ return new Date().toISOString().slice(0,10); }
-  function currentPeriod(){
-    const h = new Date().getHours();
-    if (h < 12) return 'manha';
-    if (h < 18) return 'tarde';
-    return 'noite';
-  }
-  function periodLabel(p){ return {manha:'Manhã', tarde:'Tarde', noite:'Após o expediente'}[p] || p; }
 
-  function trackProtocolMovements(summary){
+  function checkScheduledSnapshots(summary){
     const now = new Date();
     const dateKey = todayKey();
-    const period = currentPeriod();
-    const seenNow = {}; // processo -> setor atual
+    let changed = false;
+    SNAPSHOT_SLOTS.forEach(slot => {
+      const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), slot.hh, slot.mm, 0);
+      if (now < target) return;
+      if (!snapshotStore[dateKey]) snapshotStore[dateKey] = {};
+      if (snapshotStore[dateKey][slot.key]) return; // já registrado esse horário hoje
 
-    Object.keys(SECTOR_SHEETS).forEach(sector => {
-      const data = summary.sectors[sector];
-      if (!data || data.error) return;
-      data.items.forEach(it => { seenNow[it.processo] = sector; });
+      const sectors = {};
+      Object.keys(SECTOR_SHEETS).forEach(sector => {
+        const data = summary.sectors[sector];
+        if (!data || data.error) return;
+        sectors[sector] = { total: data.items.length, items: data.items.map(it => it.processo) };
+      });
+      snapshotStore[dateKey][slot.key] = { capturedAt: now.toISOString(), sectors };
+      changed = true;
     });
+    if (changed) saveSnapshots();
+  }
 
-    const events = [];
-    Object.keys(protocolRegistry).forEach(processo => {
-      const prevSector = protocolRegistry[processo].sector;
-      const nowSector = seenNow[processo];
-      if (!nowSector){
-        events.push({date:dateKey, time:now.toISOString(), period, processo, from:prevSector, to:'CONCLUÍDO'});
-      } else if (nowSector !== prevSector){
-        events.push({date:dateKey, time:now.toISOString(), period, processo, from:prevSector, to:nowSector});
+  // compara duas fotos: quantos protocolos cada setor encaminhou (estava lá
+  // na foto anterior, está em outro setor na foto seguinte)
+  function diffSnapshots(prev, curr){
+    const bySector = {};
+    if (!prev || !curr) return bySector;
+    const prevMap = {}, currMap = {};
+    Object.entries(prev.sectors || {}).forEach(([sector, s]) => s.items.forEach(p => { prevMap[p] = sector; }));
+    Object.entries(curr.sectors || {}).forEach(([sector, s]) => s.items.forEach(p => { currMap[p] = sector; }));
+    Object.keys(prevMap).forEach(processo => {
+      const from = prevMap[processo];
+      const to = currMap[processo];
+      if (to && to !== from){
+        if (!bySector[from]) bySector[from] = 0;
+        bySector[from]++;
       }
     });
-
-    const newRegistry = {};
-    Object.keys(seenNow).forEach(processo => {
-      newRegistry[processo] = { sector: seenNow[processo], updatedAt: now.toISOString() };
-    });
-    protocolRegistry = newRegistry;
-    saveRegistry();
-
-    if (events.length){
-      productionLog = productionLog.concat(events);
-      saveProductionLog();
-    }
+    return bySector;
   }
 
   function startOfWeek(d){
@@ -690,19 +677,23 @@
   }
   function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
 
+  // soma, ao longo de vários dias, quanto cada setor encaminhou nas
+  // transições 10h30→15h00 e 15h00→19h00 de cada dia
   function aggregateProduction(fromDate, toDate){
     const fromKey = fromDate.toISOString().slice(0,10);
     const toKey = toDate.toISOString().slice(0,10);
-    const bySector = {};
-    productionLog.forEach(e => {
-      if (e.date < fromKey || e.date > toKey) return;
-      if (!bySector[e.from]) bySector[e.from] = { encaminhados:0, concluidos:0, total:0, eventos:[] };
-      if (e.to === 'CONCLUÍDO') bySector[e.from].concluidos++;
-      else bySector[e.from].encaminhados++;
-      bySector[e.from].total++;
-      bySector[e.from].eventos.push(e);
+    const totals = {};
+    Object.keys(snapshotStore).forEach(dateKey => {
+      if (dateKey < fromKey || dateKey > toKey) return;
+      const day = snapshotStore[dateKey];
+      [['10h30','15h00'], ['15h00','19h00']].forEach(([a,b]) => {
+        const diff = diffSnapshots(day[a], day[b]);
+        Object.entries(diff).forEach(([sector, n]) => {
+          totals[sector] = (totals[sector] || 0) + n;
+        });
+      });
     });
-    return bySector;
+    return totals;
   }
 
   function styleForStatus(status){ return STATUS_STYLES[status] || DEFAULT_STYLE; }
@@ -1122,26 +1113,15 @@
   function renderRelatorioGeralPage(){
     const mainContent = document.getElementById('mainContent');
     const now = new Date();
-    let from, to, rangeLabel;
-    if (relatorioGeralRange === 'semana'){
-      from = startOfWeek(now); to = now; rangeLabel = 'Esta semana';
-    } else if (relatorioGeralRange === 'mes'){
-      from = startOfMonth(now); to = now; rangeLabel = 'Este mês';
-    } else {
-      from = new Date(now.getFullYear(), now.getMonth(), now.getDate()); to = now; rangeLabel = 'Hoje';
-    }
-
-    const bySector = aggregateProduction(from, to);
     const sectorList = Object.keys(SECTOR_SHEETS);
-    const totalGeral = sectorList.reduce((acc, s) => acc + ((bySector[s]||{}).total||0), 0);
 
     let html = `
       <div class="sector-header" style="--sev-solid:var(--accent);">
         <h2>Relatório Geral</h2>
         <div style="color:rgba(255,255,255,.85);font-size:13px;max-width:560px;">
-          Produção de cada setor, medida protocolo a protocolo: toda vez que a planilha muda, o painel
-          compara onde cada protocolo estava e onde está agora. Se ele mudou de setor, o setor de origem
-          encaminhou. Se ele sumiu de todos os setores, foi concluído.
+          O painel tira uma foto de quantos protocolos cada setor tem às 10h30, 15h00 e 19h00.
+          Comparando uma foto com a seguinte, mostra quantos protocolos cada setor encaminhou
+          (mudaram de setor entre as duas fotos).
         </div>
       </div>
 
@@ -1149,37 +1129,75 @@
         <button onclick="setRelatorioGeralRange('hoje')" class="${relatorioGeralRange==='hoje'?'active':''}">Hoje</button>
         <button onclick="setRelatorioGeralRange('semana')" class="${relatorioGeralRange==='semana'?'active':''}">Esta Semana</button>
         <button onclick="setRelatorioGeralRange('mes')" class="${relatorioGeralRange==='mes'?'active':''}">Este Mês</button>
-      </div>
+      </div>`;
 
-      <div class="card" style="margin-bottom:16px;">
+    if (relatorioGeralRange === 'hoje'){
+      const dateKey = todayKey();
+      const day = snapshotStore[dateKey] || {};
+      let prevSlot = null;
+      SNAPSHOT_SLOTS.forEach(slot => {
+        const snap = day[slot.key];
+        html += `<div class="card" style="margin-bottom:16px;">
+          <div class="card-head" style="margin-bottom:${snap ? '14px' : '0'};">
+            <h2 style="font-size:19px;">${slot.label} <span style="font-size:12px;color:var(--muted);font-weight:600;text-transform:none;">— ${slot.desc}</span></h2>
+            ${snap ? `<div class="led"><span class="bulb"></span>Registrado às ${new Date(snap.capturedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+          </div>`;
+
+        if (!snap){
+          html += `<div class="empty-sector">Ainda não chegou esse horário hoje (ou o painel ainda não estava aberto quando ele passou).</div>`;
+        } else {
+          const diff = prevSlot ? diffSnapshots(prevSlot, snap) : null;
+          html += `<div style="display:flex;flex-direction:column;gap:8px;">`;
+          sectorList.forEach(sector => {
+            const s = snap.sectors[sector];
+            if (!s) return;
+            const encaminhados = diff ? (diff[sector] || 0) : null;
+            html += `
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#FAFBFC;border:1px solid var(--panel-border);border-radius:10px;flex-wrap:wrap;">
+                <span style="font-weight:700;font-size:13.5px;">${escapeHtml(sector)}</span>
+                <span style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                  <span class="mark-tag" style="background:var(--gray-bg);color:var(--gray-text);">${s.total} pendente${s.total===1?'':'s'}</span>
+                  ${diff !== null ? `<span class="mark-tag mark-pass">➜ ${encaminhados} encaminhado${encaminhados===1?'':'s'}</span>` : ''}
+                </span>
+              </div>`;
+          });
+          html += `</div>`;
+          prevSlot = snap;
+        }
+        html += `</div>`;
+      });
+    } else {
+      const from = relatorioGeralRange === 'semana' ? startOfWeek(now) : startOfMonth(now);
+      const totals = aggregateProduction(from, now);
+      const totalGeral = sectorList.reduce((acc, s) => acc + (totals[s] || 0), 0);
+      const rangeLabel = relatorioGeralRange === 'semana' ? 'Esta Semana' : 'Este Mês';
+
+      html += `<div class="card" style="margin-bottom:16px;">
         <div class="card-head" style="margin-bottom:14px;">
           <h2 style="font-size:19px;">${rangeLabel}</h2>
-          <div class="led"><span class="bulb"></span>${totalGeral} produzido${totalGeral===1?'':'s'} no total</div>
+          <div class="led"><span class="bulb"></span>${totalGeral} encaminhado${totalGeral===1?'':'s'} no total</div>
         </div>`;
 
-    if (totalGeral === 0){
-      html += `<div class="empty-sector">Ainda não há produção registrada nesse período. Isso é preenchido sozinho conforme você for atualizando a planilha ao longo dos dias.</div>`;
-    } else {
-      html += `<div style="display:flex;flex-direction:column;gap:8px;">`;
-      sectorList
-        .slice()
-        .sort((a,b) => ((bySector[b]||{}).total||0) - ((bySector[a]||{}).total||0))
-        .forEach(sector => {
-          const d = bySector[sector];
-          if (!d || d.total === 0) return;
-          html += `
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#FAFBFC;border:1px solid var(--panel-border);border-radius:10px;flex-wrap:wrap;">
-              <span style="font-weight:700;font-size:13.5px;">${escapeHtml(sector)}</span>
-              <span style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                <span class="mark-tag mark-pass">➜ ${d.encaminhados} encaminhado${d.encaminhados===1?'':'s'}</span>
-                <span class="mark-tag mark-done">✓ ${d.concluidos} concluído${d.concluidos===1?'':'s'}</span>
-                <span style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:14px;color:#20243A;">${d.total}</span>
-              </span>
-            </div>`;
-        });
+      if (totalGeral === 0){
+        html += `<div class="empty-sector">Ainda não há produção registrada nesse período.</div>`;
+      } else {
+        html += `<div style="display:flex;flex-direction:column;gap:8px;">`;
+        sectorList
+          .slice()
+          .sort((a,b) => (totals[b]||0) - (totals[a]||0))
+          .forEach(sector => {
+            const n = totals[sector] || 0;
+            if (n === 0) return;
+            html += `
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#FAFBFC;border:1px solid var(--panel-border);border-radius:10px;">
+                <span style="font-weight:700;font-size:13.5px;">${escapeHtml(sector)}</span>
+                <span class="mark-tag mark-pass">➜ ${n} encaminhado${n===1?'':'s'}</span>
+              </div>`;
+          });
+        html += `</div>`;
+      }
       html += `</div>`;
     }
-    html += `</div>`;
 
     mainContent.innerHTML = html;
   }
@@ -1694,10 +1712,11 @@
 
   async function refresh(){
     if (remoteConfigured()){
-      await Promise.all([loadMarks(), loadRegistry(), loadProductionLog()]);
+      await Promise.all([loadMarks(), loadSnapshots()]);
     }
     lastSummary = await buildSummary();
     reconcileMarks(lastSummary);
+    checkScheduledSnapshots(lastSummary);
     document.getElementById('updatedAt').textContent = fmtDateTime(lastSummary.updatedAt);
     updateSidebarBadges(lastSummary);
     renderCurrentRoute();
@@ -1814,7 +1833,7 @@
   (async function start(){
     buildSidebarNav();
     loadSectorOrder();
-    await Promise.all([loadMarks(), loadRegistry(), loadProductionLog()]);
+    await Promise.all([loadMarks(), loadSnapshots()]);
     tickClock();
     setInterval(tickClock, 1000);
     await refresh();
