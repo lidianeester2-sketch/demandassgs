@@ -527,6 +527,18 @@
   };
   const DEFAULT_STYLE = {bg:"var(--gray-bg)", text:"var(--gray-text)", solid:"var(--gray-solid)"};
   const OK_STYLE = {bg:"var(--green-bg)", text:"var(--green-text)", solid:"var(--green-solid)"};
+
+  // Regra excepcional do setor de Comunicação: um protocolo "No prazo" é
+  // um processo em andamento dentro do prazo normal, não uma demanda que
+  // precisa ser feita hoje. Para esse setor, só "Alerta", "Crítico" e
+  // "Expirado" contam como demanda (total do card, badges, listas e
+  // relatórios). Os demais setores continuam contando todos os status.
+  const COMMUNICATION_SECTOR = "Comunicação";
+  const COMMUNICATION_IGNORED_STATUS = "No prazo";
+  function isDemandItem(sector, item){
+    if (sector === COMMUNICATION_SECTOR && item.status === COMMUNICATION_IGNORED_STATUS) return false;
+    return true;
+  }
   // ============================================================
 
   let lastSummary = null;
@@ -630,6 +642,19 @@
 
   function todayKey(){ return new Date().toISOString().slice(0,10); }
 
+  // monta o objeto {setor: {total, items}} usado dentro de uma foto de
+  // produção, a partir de um resumo (lastSummary) já carregado
+  function snapshotSectorsFrom(summary){
+    const sectors = {};
+    Object.keys(SECTOR_SHEETS).forEach(sector => {
+      const data = summary.sectors[sector];
+      if (!data || data.error) return;
+      const demandItems = data.items.filter(it => isDemandItem(sector, it));
+      sectors[sector] = { total: demandItems.length, items: demandItems.map(it => it.processo) };
+    });
+    return sectors;
+  }
+
   function checkScheduledSnapshots(summary){
     const now = new Date();
     const dateKey = todayKey();
@@ -640,16 +665,44 @@
       if (!snapshotStore[dateKey]) snapshotStore[dateKey] = {};
       if (snapshotStore[dateKey][slot.key]) return; // já registrado esse horário hoje
 
-      const sectors = {};
-      Object.keys(SECTOR_SHEETS).forEach(sector => {
-        const data = summary.sectors[sector];
-        if (!data || data.error) return;
-        sectors[sector] = { total: data.items.length, items: data.items.map(it => it.processo) };
-      });
-      snapshotStore[dateKey][slot.key] = { capturedAt: now.toISOString(), sectors };
+      snapshotStore[dateKey][slot.key] = { capturedAt: now.toISOString(), sectors: snapshotSectorsFrom(summary) };
       changed = true;
     });
     if (changed) saveSnapshots();
+  }
+
+  // captura manual: permite tirar (ou atualizar) a foto de um horário a
+  // qualquer momento, sem esperar o horário programado. Busca dados
+  // novos da planilha antes de gravar, para a foto ficar realmente
+  // atualizada com o que está na tela agora.
+  async function captureSnapshotNow(slotKey, evt){
+    const slot = SNAPSHOT_SLOTS.find(s => s.key === slotKey);
+    if (!slot) return;
+    const dateKey = todayKey();
+    const existing = snapshotStore[dateKey] && snapshotStore[dateKey][slotKey];
+    if (existing){
+      const capturedTime = new Date(existing.capturedAt).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+      const ok = confirm(`Já existe uma foto de ${slot.label} registrada às ${capturedTime}. Atualizar agora vai substituir esses dados. Deseja continuar?`);
+      if (!ok) return;
+    }
+
+    const btn = evt && evt.target ? evt.target.closest('button') : null;
+    const originalText = btn ? btn.textContent : null;
+    if (btn){ btn.disabled = true; btn.textContent = '⏳ Atualizando...'; }
+
+    try{
+      lastSummary = await buildSummary();
+      if (!snapshotStore[dateKey]) snapshotStore[dateKey] = {};
+      snapshotStore[dateKey][slotKey] = { capturedAt: new Date().toISOString(), sectors: snapshotSectorsFrom(lastSummary) };
+      saveSnapshots();
+      reconcileMarks(lastSummary);
+      document.getElementById('updatedAt').textContent = fmtDateTime(lastSummary.updatedAt);
+      updateSidebarBadges(lastSummary);
+      renderCurrentRoute();
+    }catch(err){
+      alert('Não consegui atualizar essa foto agora. Tente novamente.');
+      if (btn){ btn.disabled = false; btn.textContent = originalText; }
+    }
   }
 
   // compara duas fotos: quantos protocolos cada setor encaminhou (estava lá
@@ -671,6 +724,7 @@
     return bySector;
   }
 
+  function startOfDay(d){ const r = new Date(d); r.setHours(0,0,0,0); return r; }
   function startOfWeek(d){
     const r = new Date(d); const day = r.getDay(); const diff = (day === 0 ? 6 : day - 1);
     r.setDate(r.getDate() - diff); r.setHours(0,0,0,0); return r;
@@ -891,7 +945,8 @@
 
       // aplica o filtro de associação primeiro — tudo abaixo (contagens,
       // total, lista) reflete somente os itens da associação selecionada
-      const assocItems = data.items.filter(matchesAssoc);
+      // (e, no caso da Comunicação, exclui os "No prazo" — ver isDemandItem)
+      const assocItems = data.items.filter(matchesAssoc).filter(it => isDemandItem(sector, it));
       const statusCounts = {};
       assocItems.forEach(it => { statusCounts[it.status] = (statusCounts[it.status]||0)+1; });
       const total = assocItems.length;
@@ -1033,7 +1088,7 @@
       return;
     }
 
-    const assocItems = data.items.filter(matchesAssoc);
+    const assocItems = data.items.filter(matchesAssoc).filter(it => isDemandItem(sector, it));
     const statusCounts = {};
     assocItems.forEach(it => { statusCounts[it.status] = (statusCounts[it.status]||0)+1; });
     const total = assocItems.length;
@@ -1110,6 +1165,35 @@
     renderCurrentRoute();
   }
 
+  function rangeLabelFor(range){
+    return range === 'hoje' ? 'Hoje' : range === 'semana' ? 'Esta Semana' : 'Este Mês';
+  }
+  function rangeFromFor(range, now){
+    return range === 'hoje' ? startOfDay(now) : range === 'semana' ? startOfWeek(now) : startOfMonth(now);
+  }
+
+  // gráfico de barras com a produtividade (protocolos encaminhados) de
+  // cada setor no período selecionado — reaproveita o visual do
+  // gráfico de etapas, mas sem filtro ao clicar (é só leitura)
+  function buildProductivitySummaryChart(totals, sectorList, title){
+    const entries = sectorList.map(s => [s, totals[s] || 0]).sort((a,b) => b[1]-a[1]);
+    const max = Math.max(1, ...entries.map(e => e[1]));
+    const totalAll = entries.reduce((acc,e) => acc + e[1], 0);
+    const hasData = totalAll > 0;
+    return `<div class="chart-card" style="margin-bottom:16px;">
+      <div class="chart-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>${escapeHtml(title)}</span>
+        <span style="color:var(--headbar);font-weight:800;">${totalAll} encaminhado${totalAll===1?'':'s'}</span>
+      </div>
+      ${hasData ? entries.map(([label,n]) => `
+        <div class="chart-row" style="cursor:default;">
+          <div class="chart-label" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
+          <div class="chart-bar-wrap"><div class="chart-bar" style="width:${(n/max*100)}%"></div></div>
+          <div class="chart-value">${n}</div>
+        </div>`).join('') : '<div class="empty-sector">Ainda não há produção registrada nesse período.</div>'}
+    </div>`;
+  }
+
   function renderRelatorioGeralPage(){
     const mainContent = document.getElementById('mainContent');
     const now = new Date();
@@ -1131,6 +1215,11 @@
         <button onclick="setRelatorioGeralRange('mes')" class="${relatorioGeralRange==='mes'?'active':''}">Este Mês</button>
       </div>`;
 
+    // gráfico de resumo de produtividade do período selecionado (hoje,
+    // semana ou mês) — sempre visível no topo, independente da aba
+    const rangeTotals = aggregateProduction(rangeFromFor(relatorioGeralRange, now), now);
+    html += buildProductivitySummaryChart(rangeTotals, sectorList, `Produtividade dos setores — ${rangeLabelFor(relatorioGeralRange)}`);
+
     if (relatorioGeralRange === 'hoje'){
       const dateKey = todayKey();
       const day = snapshotStore[dateKey] || {};
@@ -1140,7 +1229,10 @@
         html += `<div class="card" style="margin-bottom:16px;">
           <div class="card-head" style="margin-bottom:${snap ? '14px' : '0'};">
             <h2 style="font-size:19px;">${slot.label} <span style="font-size:12px;color:var(--muted);font-weight:600;text-transform:none;">— ${slot.desc}</span></h2>
-            ${snap ? `<div class="led"><span class="bulb"></span>Registrado às ${new Date(snap.capturedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+            <div class="card-head-right">
+              ${snap ? `<div class="led"><span class="bulb"></span>Registrado às ${new Date(snap.capturedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+              <button class="card-toggle" style="width:auto;padding:0 12px;border-radius:999px;font-size:12px;font-weight:700;gap:6px;display:flex;align-items:center;" onclick="captureSnapshotNow('${slot.key}', event)" title="Atualizar esta foto agora, sem esperar o horário programado">🔄 Atualizar</button>
+            </div>
           </div>`;
 
         if (!snap){
@@ -1166,37 +1258,6 @@
         }
         html += `</div>`;
       });
-    } else {
-      const from = relatorioGeralRange === 'semana' ? startOfWeek(now) : startOfMonth(now);
-      const totals = aggregateProduction(from, now);
-      const totalGeral = sectorList.reduce((acc, s) => acc + (totals[s] || 0), 0);
-      const rangeLabel = relatorioGeralRange === 'semana' ? 'Esta Semana' : 'Este Mês';
-
-      html += `<div class="card" style="margin-bottom:16px;">
-        <div class="card-head" style="margin-bottom:14px;">
-          <h2 style="font-size:19px;">${rangeLabel}</h2>
-          <div class="led"><span class="bulb"></span>${totalGeral} encaminhado${totalGeral===1?'':'s'} no total</div>
-        </div>`;
-
-      if (totalGeral === 0){
-        html += `<div class="empty-sector">Ainda não há produção registrada nesse período.</div>`;
-      } else {
-        html += `<div style="display:flex;flex-direction:column;gap:8px;">`;
-        sectorList
-          .slice()
-          .sort((a,b) => (totals[b]||0) - (totals[a]||0))
-          .forEach(sector => {
-            const n = totals[sector] || 0;
-            if (n === 0) return;
-            html += `
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#FAFBFC;border:1px solid var(--panel-border);border-radius:10px;">
-                <span style="font-weight:700;font-size:13.5px;">${escapeHtml(sector)}</span>
-                <span class="mark-tag mark-pass">➜ ${n} encaminhado${n===1?'':'s'}</span>
-              </div>`;
-          });
-        html += `</div>`;
-      }
-      html += `</div>`;
     }
 
     mainContent.innerHTML = html;
@@ -1237,7 +1298,7 @@
     Object.keys(SECTOR_SHEETS).forEach(sector => {
       const data = lastSummary.sectors[sector];
       if (!data || data.error) return;
-      const items = data.items.filter(matchesAssoc);
+      const items = data.items.filter(matchesAssoc).filter(it => isDemandItem(sector, it));
       const atrasadosItems = items.filter(it => it.status === 'Expirado' || it.status === 'Crítico');
       const alertaItems = items.filter(it => it.status === 'Alerta');
       totalAtrasos += atrasadosItems.length;
@@ -1272,7 +1333,7 @@
       return lines.join('\n');
     }
 
-    const items = data.items.filter(matchesAssoc);
+    const items = data.items.filter(matchesAssoc).filter(it => isDemandItem(sector, it));
     const atrasadosItems = items.filter(it => it.status === 'Expirado' || it.status === 'Crítico');
     const alertaItems = items.filter(it => it.status === 'Alerta');
 
@@ -1294,17 +1355,51 @@
     return lines.join('\n');
   }
 
+  // resumo de produtividade dos setores (protocolos encaminhados) no
+  // período selecionado na página de Relatório Geral, no mesmo formato
+  // de texto usado nos outros relatórios de WhatsApp
+  function buildProductivityReportMessage(){
+    const { weekday, dateStr } = reportHeaderParts();
+    const now = new Date();
+    const totals = aggregateProduction(rangeFromFor(relatorioGeralRange, now), now);
+    const sectorList = Object.keys(SECTOR_SHEETS);
+    const totalGeral = sectorList.reduce((acc, s) => acc + (totals[s] || 0), 0);
+
+    const lines = [];
+    lines.push('*Resumo de Produtividade dos Setores*');
+    lines.push(`${rangeLabelFor(relatorioGeralRange)} | ${weekday}, ${dateStr}`);
+    lines.push('');
+    lines.push(`Total encaminhado: ${totalGeral} protocolo${totalGeral===1?'':'s'}`);
+    lines.push('');
+
+    const withProd = sectorList
+      .map(s => [s, totals[s] || 0])
+      .sort((a,b) => b[1]-a[1])
+      .filter(([,n]) => n > 0);
+
+    if (withProd.length === 0){
+      lines.push('Ainda não há produção registrada nesse período.');
+    } else {
+      withProd.forEach(([sector, n]) => lines.push(`${sector}: ${n} encaminhado${n===1?'':'s'}`));
+    }
+
+    return lines.join('\n');
+  }
+
   function buildWhatsAppMessage(){
     if (!lastSummary) return 'Relatório de Demandas: sem dados no momento.';
     const route = parseRoute();
     if (route.type === 'setor') return buildSectorReportMessage(route.sector);
+    if (route.type === 'relatorio-geral') return buildProductivityReportMessage();
     return buildGeneralReportMessage();
   }
 
   function openWhatsAppMenu(){
     const validContacts = CONTACTS.filter(c => c.phone && !c.phone.includes('COLE_O_TELEFONE'));
     const route = parseRoute();
-    const menuTitle = route.type === 'setor' ? `Relatório do setor: ${route.sector}` : 'Relatório geral (todos os setores)';
+    const menuTitle = route.type === 'setor' ? `Relatório do setor: ${route.sector}`
+      : route.type === 'relatorio-geral' ? `Resumo de produtividade — ${rangeLabelFor(relatorioGeralRange)}`
+      : 'Relatório geral (todos os setores)';
     const box = document.getElementById('waBox');
     box.innerHTML = `
       <div class="modal-head">
@@ -1414,7 +1509,7 @@
     Object.keys(SECTOR_SHEETS).forEach(sector => {
       const data = lastSummary.sectors[sector];
       if (!data || data.error) return;
-      const items = data.items.filter(matchesAssoc);
+      const items = data.items.filter(matchesAssoc).filter(it => isDemandItem(sector, it));
       const atrasos = items.filter(it => it.status === 'Expirado' || it.status === 'Crítico').length;
       const alertas = items.filter(it => it.status === 'Alerta').length;
       items.forEach(it => { statusTotals[it.status] = (statusTotals[it.status]||0)+1; });
@@ -1482,7 +1577,7 @@
     if (!data || data.error){
       return { empty: true };
     }
-    const items = data.items.filter(matchesAssoc);
+    const items = data.items.filter(matchesAssoc).filter(it => isDemandItem(sector, it));
     const statusCounts = {};
     items.forEach(it => { statusCounts[it.status] = (statusCounts[it.status]||0)+1; });
     const atrasos = (statusCounts['Expirado']||0) + (statusCounts['Crítico']||0);
@@ -1678,7 +1773,7 @@
       if (!el) return;
       const data = summary.sectors[sector];
       if (!data || data.error){ el.textContent = '–'; el.classList.remove('nav-badge-alert'); return; }
-      const items = data.items.filter(matchesAssoc);
+      const items = data.items.filter(matchesAssoc).filter(it => isDemandItem(sector, it));
       const pend = items.filter(it => SEVERITY_ORDER.includes(it.status)).length;
       el.textContent = String(pend);
       el.classList.toggle('nav-badge-alert', pend > 0);
@@ -1706,6 +1801,12 @@
     if (route.type === 'setor') renderSectorPage(route.sector);
     else if (route.type === 'relatorio-geral') renderRelatorioGeralPage();
     else renderHome();
+
+    // o botão de imagem só sabe montar o infográfico de demandas (painel
+    // geral / por setor); no Relatório Geral usamos apenas o texto de
+    // WhatsApp com o resumo de produtividade
+    const waImgBtnEl = document.getElementById('waImgBtn');
+    if (waImgBtnEl) waImgBtnEl.style.display = route.type === 'relatorio-geral' ? 'none' : '';
   }
 
   window.addEventListener('hashchange', renderCurrentRoute);
