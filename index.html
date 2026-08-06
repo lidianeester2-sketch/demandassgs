@@ -617,7 +617,7 @@
   // apaga tudo pra colar de novo), o painel tira uma "foto" de quantos
   // protocolos cada setor tem, só nesses três horários do dia. Comparando
   // uma foto com a seguinte, dá pra ver quais protocolos mudaram de setor
-  // (isso conta como "encaminhado" pelo setor de origem). Não existe mais
+  // (isso conta como "tarefa realizada" pelo setor de origem). Não existe mais
   // suposição de "sumiu = concluído" — se um protocolo não aparece na foto
   // seguinte, ele simplesmente não entra na conta.
   const SNAPSHOT_KEY = 'sgs_fotos_producao_v1';
@@ -705,7 +705,7 @@
     }
   }
 
-  // compara duas fotos: quantos protocolos cada setor encaminhou (estava lá
+  // compara duas fotos: quantos protocolos cada setor teve como tarefa realizada (estava lá
   // na foto anterior, está em outro setor na foto seguinte)
   function diffSnapshots(prev, curr){
     const bySector = {};
@@ -731,7 +731,7 @@
   }
   function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
 
-  // soma, ao longo de vários dias, quanto cada setor encaminhou nas
+  // soma, ao longo de vários dias, quantas tarefas cada setor realizou nas
   // transições 10h30→15h00 e 15h00→19h00 de cada dia
   function aggregateProduction(fromDate, toDate){
     const fromKey = fromDate.toISOString().slice(0,10);
@@ -1187,7 +1187,7 @@
     return range === 'hoje' ? startOfDay(now) : range === 'semana' ? startOfWeek(now) : startOfMonth(now);
   }
 
-  // gráfico de barras com a produtividade (protocolos encaminhados) de
+  // gráfico de barras com a produtividade (protocolos com tarefa realizada) de
   // cada setor no período selecionado — reaproveita o visual do
   // gráfico de etapas, mas sem filtro ao clicar (é só leitura)
   function buildProductivitySummaryChart(totals, sectorList, title){
@@ -1198,7 +1198,7 @@
     return `<div class="chart-card" style="margin-bottom:16px;">
       <div class="chart-title" style="display:flex;justify-content:space-between;align-items:center;">
         <span>${escapeHtml(title)}</span>
-        <span style="color:var(--headbar);font-weight:800;">${totalAll} encaminhado${totalAll===1?'':'s'}</span>
+        <span style="color:var(--headbar);font-weight:800;">${totalAll} tarefa${totalAll===1?'':'s'} realizada${totalAll===1?'':'s'}</span>
       </div>
       ${hasData ? entries.map(([label,n]) => `
         <div class="chart-row" style="cursor:default;">
@@ -1219,7 +1219,7 @@
         <h2>Relatório Geral</h2>
         <div style="color:rgba(255,255,255,.85);font-size:13px;max-width:560px;">
           O painel tira uma foto de quantos protocolos cada setor tem às 10h30, 15h00 e 19h00.
-          Comparando uma foto com a seguinte, mostra quantos protocolos cada setor encaminhou
+          Comparando uma foto com a seguinte, mostra quantos protocolos cada setor teve como tarefa realizada
           (mudaram de setor entre as duas fotos).
         </div>
       </div>
@@ -1258,13 +1258,13 @@
           sectorList.forEach(sector => {
             const s = snap.sectors[sector];
             if (!s) return;
-            const encaminhados = diff ? (diff[sector] || 0) : null;
+            const tarefasRealizadas = diff ? (diff[sector] || 0) : null;
             html += `
               <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#FAFBFC;border:1px solid var(--panel-border);border-radius:10px;flex-wrap:wrap;">
                 <span style="font-weight:700;font-size:13.5px;">${escapeHtml(sector)}</span>
                 <span style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                   <span class="mark-tag" style="background:var(--gray-bg);color:var(--gray-text);">${s.total} pendente${s.total===1?'':'s'}</span>
-                  ${diff !== null ? `<span class="mark-tag mark-pass">➜ ${encaminhados} encaminhado${encaminhados===1?'':'s'}</span>` : ''}
+                  ${diff !== null ? `<span class="mark-tag mark-pass">➜ ${tarefasRealizadas} tarefa${tarefasRealizadas===1?'':'s'} realizada${tarefasRealizadas===1?'':'s'}</span>` : ''}
                 </span>
               </div>`;
           });
@@ -1297,7 +1297,8 @@
     let weekday = now.toLocaleDateString('pt-BR', {weekday: 'long'});
     weekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
     const dateStr = now.toLocaleDateString('pt-BR');
-    return { weekday, dateStr };
+    const timeStr = now.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+    return { weekday, dateStr, timeStr };
   }
   const procWord = n => n === 1 ? 'processo' : 'processos';
 
@@ -1370,7 +1371,7 @@
     return lines.join('\n');
   }
 
-  // resumo de produtividade dos setores (protocolos encaminhados) no
+  // resumo de produtividade dos setores (protocolos com tarefa realizada) no
   // período selecionado na página de Relatório Geral, no mesmo formato
   // de texto usado nos outros relatórios de WhatsApp
   function buildProductivityReportMessage(){
@@ -1384,7 +1385,7 @@
     lines.push('*Resumo de Produtividade dos Setores*');
     lines.push(`${rangeLabelFor(relatorioGeralRange)} | ${weekday}, ${dateStr}`);
     lines.push('');
-    lines.push(`Total encaminhado: ${totalGeral} protocolo${totalGeral===1?'':'s'}`);
+    lines.push(`Total de tarefas realizadas: ${totalGeral} protocolo${totalGeral===1?'':'s'}`);
     lines.push('');
 
     const withProd = sectorList
@@ -1395,7 +1396,7 @@
     if (withProd.length === 0){
       lines.push('Ainda não há produção registrada nesse período.');
     } else {
-      withProd.forEach(([sector, n]) => lines.push(`${sector}: ${n} encaminhado${n===1?'':'s'}`));
+      withProd.forEach(([sector, n]) => lines.push(`${sector}: ${n} tarefa${n===1?'':'s'} realizada${n===1?'':'s'}`));
     }
 
     return lines.join('\n');
@@ -1651,7 +1652,7 @@
     }).join('');
 
     // donut: participação de cada turno do dia (manhã 10h30→15h e tarde
-    // 15h→19h) no total encaminhado no período
+    // 15h→19h) no total de tarefas realizadas no período
     const turns = aggregateProductionByTurn(rangeFromFor(relatorioGeralRange, now), now);
     const donut = donutHtml(
       [{color:'#2E3178', value: turns.manha}, {color:'#F95F45', value: turns.tarde}],
@@ -1663,7 +1664,7 @@
       {c:'#F95F45', l:'Tarde (15h→19h)'}
     ].map(x => `<div style="display:flex;align-items:center;gap:6px;font-size:9.5px;color:#20243A;font-weight:700;margin-bottom:6px;"><span style="width:9px;height:9px;border-radius:50%;background:${x.c};display:inline-block;box-shadow:0 0 0 2px #fff, 0 0 0 3px ${x.c};"></span>${x.l}</div>`).join('');
 
-    // barras: setores mais produtivos (só entra quem encaminhou algo)
+    // barras: setores mais produtivos (só entra quem teve tarefa realizada)
     const topRows = rows.filter(r => r.total > 0).slice(0, 6);
     const maxTop = Math.max(1, ...topRows.map(r => r.total));
     const barsHtml = topRows.map(r => {
@@ -1676,7 +1677,7 @@
         </div>`;
     }).join('');
 
-    // anéis: % do total encaminhado que cada setor representa
+    // anéis: % do total de tarefas realizadas que cada setor representa
     const gaugesHtml = rows.map(r => {
       const pct = totalGeral > 0 ? Math.round((r.total / totalGeral) * 100) : 0;
       const color = pct >= 20 ? '#2F8551' : pct >= 10 ? '#C6890F' : '#8A93A8';
@@ -1689,7 +1690,7 @@
   }
 
   function buildReportImageHtml(){
-    const { weekday, dateStr } = reportHeaderParts();
+    const { weekday, dateStr, timeStr } = reportHeaderParts();
     const route = parseRoute();
     const logoImg = reportLogoImgHtml();
 
@@ -1697,7 +1698,7 @@
       const p = buildProductivityImageBlock();
       const statsRow = `
         <div style="display:flex;gap:10px;margin-bottom:18px;">
-          ${statCardHtml('📤','Encaminhados', p.totalGeral, '#2E3178', false)}
+          ${statCardHtml('📤','Tarefas Realizadas', p.totalGeral, '#2E3178', false)}
           ${statCardHtml('🏭','Setores Ativos', p.activeSectors, '#2F8551', true)}
           ${statCardHtml('📈','Média/Setor', p.media, '#C6890F', true)}
         </div>`;
@@ -1712,20 +1713,23 @@
       const gaugesSection = sectionCardHtml('% do Total por Setor', `<div style="display:grid;grid-template-columns:repeat(4,1fr);row-gap:16px;column-gap:6px;">${p.gaugesHtml}</div>`);
 
       return `
-        <div style="font-family:'Inter',system-ui,sans-serif; background:#F5F6FA; width:460px; border:2px solid #20243A; border-radius:18px; overflow:hidden;">
-          <div style="height:8px;background:linear-gradient(90deg,#2E3178,#2F8551);"></div>
-          <div style="padding:22px 24px 24px;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+        <div style="font-family:'Inter',system-ui,sans-serif; background:#F1FAF5; width:460px; border:2px solid #16382A; border-radius:22px; overflow:hidden;">
+          <div style="background:linear-gradient(135deg,#1F8556,#175C3D); padding:20px 24px 18px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
               <div style="display:flex;align-items:flex-start;gap:10px;">
                 ${logoImg}
                 <div>
-                  <div style="font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;color:#9AA1B8;font-weight:700;margin-bottom:2px;">Resumo de produtividade</div>
-                  <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:21px;color:#20243A;letter-spacing:.2px;line-height:1.1;">Relatório Diário SGS</div>
-                  <div style="color:#9AA1B8;font-size:10px;margin-top:3px;">${weekday} · ${dateStr}</div>
+                  <div style="display:inline-flex;align-items:center;gap:5px;font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;color:#DFF6E9;font-weight:800;margin-bottom:4px;">📊 Resumo de produtividade</div>
+                  <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:22px;color:#fff;letter-spacing:.2px;line-height:1.1;">Relatório Diário SGS</div>
+                  <div style="color:#CDEFDC;font-size:10px;margin-top:3px;">${weekday} · ${dateStr} · gerado às ${timeStr}</div>
                 </div>
               </div>
-              ${statusBadgeHtml({label: p.rangeLabel, color:'#2E3178', bg:'#EDF0FE'})}
+              <div style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;background:rgba(255,255,255,.16);color:#fff;font-weight:800;font-size:11.5px;white-space:nowrap;">
+                <span style="width:8px;height:8px;border-radius:50%;background:#fff;"></span>${escapeHtml(p.rangeLabel)}
+              </div>
             </div>
+          </div>
+          <div style="padding:20px 24px 24px;">
             ${statsRow}
             ${setorDonutRow}
             ${barsSection}
@@ -1759,7 +1763,7 @@
                 <div>
                   <div style="font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;color:#9AA1B8;font-weight:700;margin-bottom:2px;">${escapeHtml(route.sector)}</div>
                   <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:21px;color:#20243A;letter-spacing:.2px;line-height:1.1;">Relatório Diário SGS</div>
-                  <div style="color:#9AA1B8;font-size:10px;margin-top:3px;">${weekday} · ${dateStr}</div>
+                  <div style="color:#9AA1B8;font-size:10px;margin-top:3px;">${weekday} · ${dateStr} · gerado às ${timeStr}</div>
                 </div>
               </div>
               ${statusBadgeHtml(b.overallStatus)}
@@ -1800,7 +1804,7 @@
               <div>
                 <div style="font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;color:#9AA1B8;font-weight:700;margin-bottom:2px;">Resumo geral</div>
                 <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:21px;color:#20243A;letter-spacing:.2px;line-height:1.1;">Relatório Diário SGS</div>
-                <div style="color:#9AA1B8;font-size:10px;margin-top:3px;">${weekday} · ${dateStr}</div>
+                <div style="color:#9AA1B8;font-size:10px;margin-top:3px;">${weekday} · ${dateStr} · gerado às ${timeStr}</div>
               </div>
             </div>
             ${statusBadgeHtml(g.overallStatus)}
