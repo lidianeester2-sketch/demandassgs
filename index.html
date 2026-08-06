@@ -750,6 +750,21 @@
     return totals;
   }
 
+  // igual à anterior, mas soma o total geral (todos os setores) separado
+  // por turno — usado no donut "Manhã x Tarde" do relatório de imagem
+  function aggregateProductionByTurn(fromDate, toDate){
+    const fromKey = fromDate.toISOString().slice(0,10);
+    const toKey = toDate.toISOString().slice(0,10);
+    let manha = 0, tarde = 0;
+    Object.keys(snapshotStore).forEach(dateKey => {
+      if (dateKey < fromKey || dateKey > toKey) return;
+      const day = snapshotStore[dateKey];
+      Object.values(diffSnapshots(day['10h30'], day['15h00'])).forEach(n => { manha += n; });
+      Object.values(diffSnapshots(day['15h00'], day['19h00'])).forEach(n => { tarde += n; });
+    });
+    return { manha, tarde };
+  }
+
   function styleForStatus(status){ return STATUS_STYLES[status] || DEFAULT_STYLE; }
   function worstStyle(statusCounts){
     for (const s of SEVERITY_ORDER){ if (statusCounts[s] > 0) return styleForStatus(s); }
@@ -1609,10 +1624,115 @@
     return { total: items.length, atrasos, alertas, overallStatus, donut, donutLegend, etapaHtml };
   }
 
+  // monta os dados visuais do infográfico de PRODUTIVIDADE (Relatório
+  // Geral), no mesmo estilo do infográfico de demandas: cartões de
+  // estatística, barra por setor, donut e medidores percentuais.
+  function buildProductivityImageBlock(){
+    const now = new Date();
+    const rangeLabel = rangeLabelFor(relatorioGeralRange);
+    const totals = aggregateProduction(rangeFromFor(relatorioGeralRange, now), now);
+    const sectorList = Object.keys(SECTOR_SHEETS);
+    const rows = sectorList.map(s => ({ sector: s, total: totals[s] || 0 })).sort((a,b) => b.total - a.total);
+    const totalGeral = rows.reduce((acc,r) => acc + r.total, 0);
+    const activeSectors = rows.filter(r => r.total > 0).length;
+    const media = activeSectors > 0 ? Math.round(totalGeral / activeSectors) : 0;
+
+    const palette = ['#2E3178','#F95F45','#C6890F','#B8392F','#7A2E45','#2F8551','#8A93A8','#4C5CB8'];
+    const maxTotal = Math.max(1, ...rows.map(r => r.total));
+    const legendHtml = rows.map((r,i) => {
+      const color = palette[i % palette.length];
+      return `
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px;">
+          <div style="width:11px;height:11px;border-radius:50%;background:${color};flex:none;box-shadow:0 0 0 2px #fff, 0 0 0 3px ${color};"></div>
+          <div style="width:96px;font-size:11px;color:#20243A;font-weight:700;white-space:nowrap;">${escapeHtml(abbrev(r.sector, 13))}</div>
+          <div style="flex:1;background:#E2E5F2;border-radius:6px;height:10px;overflow:hidden;"><div style="height:100%;width:${(r.total/maxTotal*100)}%;background:${color};border-radius:6px;"></div></div>
+          <div style="width:22px;text-align:right;font-size:11.5px;color:#20243A;font-weight:800;">${r.total}</div>
+        </div>`;
+    }).join('');
+
+    // donut: participação de cada turno do dia (manhã 10h30→15h e tarde
+    // 15h→19h) no total encaminhado no período
+    const turns = aggregateProductionByTurn(rangeFromFor(relatorioGeralRange, now), now);
+    const donut = donutHtml(
+      [{color:'#2E3178', value: turns.manha}, {color:'#F95F45', value: turns.tarde}],
+      112, 72,
+      `<div><div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:19px;color:#20243A;">${totalGeral}</div><div style="font-size:7.5px;color:#9AA1B8;text-transform:uppercase;letter-spacing:.5px;">total</div></div>`
+    );
+    const donutLegend = [
+      {c:'#2E3178', l:'Manhã (10h30→15h)'},
+      {c:'#F95F45', l:'Tarde (15h→19h)'}
+    ].map(x => `<div style="display:flex;align-items:center;gap:6px;font-size:9.5px;color:#20243A;font-weight:700;margin-bottom:6px;"><span style="width:9px;height:9px;border-radius:50%;background:${x.c};display:inline-block;box-shadow:0 0 0 2px #fff, 0 0 0 3px ${x.c};"></span>${x.l}</div>`).join('');
+
+    // barras: setores mais produtivos (só entra quem encaminhou algo)
+    const topRows = rows.filter(r => r.total > 0).slice(0, 6);
+    const maxTop = Math.max(1, ...topRows.map(r => r.total));
+    const barsHtml = topRows.map(r => {
+      const h = Math.round((r.total / maxTop) * 78) || 4;
+      return `
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:0 0 54px;">
+          <div style="font-size:10.5px;color:#20243A;font-weight:800;">${r.total}</div>
+          <div style="width:24px;height:${h}px;background:#2F8551;border-radius:6px 6px 3px 3px;box-shadow:0 2px 4px rgba(47,133,81,.3);"></div>
+          <div style="font-size:8.5px;color:#5C6379;font-weight:700;text-align:center;line-height:1.2;">${escapeHtml(abbrev(r.sector, 6))}</div>
+        </div>`;
+    }).join('');
+
+    // anéis: % do total encaminhado que cada setor representa
+    const gaugesHtml = rows.map(r => {
+      const pct = totalGeral > 0 ? Math.round((r.total / totalGeral) * 100) : 0;
+      const color = pct >= 20 ? '#2F8551' : pct >= 10 ? '#C6890F' : '#8A93A8';
+      const g = donutHtml([{color, value: pct}, {color:'#E2E5F0', value: 100-pct}], 56, 33,
+        `<div style="font-size:10.5px;font-weight:800;color:#20243A;">${pct}%</div>`);
+      return `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;">${g}<div style="font-size:8.5px;color:#20243A;font-weight:700;text-align:center;">${escapeHtml(abbrev(r.sector, 6))}</div></div>`;
+    }).join('');
+
+    return { rangeLabel, totalGeral, activeSectors, media, legendHtml, donut, donutLegend, hasProduction: topRows.length > 0, barsHtml, gaugesHtml };
+  }
+
   function buildReportImageHtml(){
     const { weekday, dateStr } = reportHeaderParts();
     const route = parseRoute();
     const logoImg = reportLogoImgHtml();
+
+    if (route.type === 'relatorio-geral'){
+      const p = buildProductivityImageBlock();
+      const statsRow = `
+        <div style="display:flex;gap:10px;margin-bottom:18px;">
+          ${statCardHtml('📤','Encaminhados', p.totalGeral, '#2E3178', false)}
+          ${statCardHtml('🏭','Setores Ativos', p.activeSectors, '#2F8551', true)}
+          ${statCardHtml('📈','Média/Setor', p.media, '#C6890F', true)}
+        </div>`;
+      const setorDonutRow = `
+        <div style="display:flex;gap:14px;margin-bottom:0;">
+          <div style="flex:1;">${sectionCardHtml('Produtividade por Setor', p.legendHtml)}</div>
+          <div style="width:150px;">${sectionCardHtml('Manhã x Tarde', `<div style="display:flex;justify-content:center;">${p.donut}</div><div style="margin-top:10px;">${p.donutLegend}</div>`)}</div>
+        </div>`;
+      const barsSection = sectionCardHtml('Setores Mais Produtivos', p.hasProduction
+        ? `<div style="display:flex;align-items:flex-end;justify-content:center;gap:16px;height:110px;">${p.barsHtml}</div>`
+        : `<div style="display:flex;align-items:center;gap:8px;color:#8A93A8;font-weight:700;font-size:12px;">Ainda não há produção registrada nesse período.</div>`);
+      const gaugesSection = sectionCardHtml('% do Total por Setor', `<div style="display:grid;grid-template-columns:repeat(4,1fr);row-gap:16px;column-gap:6px;">${p.gaugesHtml}</div>`);
+
+      return `
+        <div style="font-family:'Inter',system-ui,sans-serif; background:#F5F6FA; width:460px; border:2px solid #20243A; border-radius:18px; overflow:hidden;">
+          <div style="height:8px;background:linear-gradient(90deg,#2E3178,#2F8551);"></div>
+          <div style="padding:22px 24px 24px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+              <div style="display:flex;align-items:flex-start;gap:10px;">
+                ${logoImg}
+                <div>
+                  <div style="font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;color:#9AA1B8;font-weight:700;margin-bottom:2px;">Resumo de produtividade</div>
+                  <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:21px;color:#20243A;letter-spacing:.2px;line-height:1.1;">Relatório Diário SGS</div>
+                  <div style="color:#9AA1B8;font-size:10px;margin-top:3px;">${weekday} · ${dateStr}</div>
+                </div>
+              </div>
+              ${statusBadgeHtml({label: p.rangeLabel, color:'#2E3178', bg:'#EDF0FE'})}
+            </div>
+            ${statsRow}
+            ${setorDonutRow}
+            ${barsSection}
+            ${gaugesSection}
+          </div>
+        </div>`;
+    }
 
     if (route.type === 'setor'){
       const b = buildSectorImageBlock(route.sector);
@@ -1723,25 +1843,28 @@
         windowWidth: target.offsetWidth,
         windowHeight: target.offsetHeight
       });
+      const isProdutividade = parseRoute().type === 'relatorio-geral';
+      const fileName = isProdutividade ? 'relatorio-produtividade.png' : 'relatorio-demandas.png';
+      const shareTitle = isProdutividade ? 'Resumo de Produtividade' : 'Relatório de Demandas';
       canvas.toBlob(async (blob) => {
         btn.disabled = false;
         btn.textContent = original;
         if (!blob) return;
-        const file = new File([blob], 'relatorio-demandas.png', {type:'image/png'});
+        const file = new File([blob], fileName, {type:'image/png'});
         let shared = false;
         if (navigator.canShare && navigator.canShare({files:[file]})){
           try{
-            await navigator.share({files:[file], title:'Relatório de Demandas'});
+            await navigator.share({files:[file], title:shareTitle});
             shared = true;
           }catch(e){ shared = true; } // usuário cancelou o compartilhamento
         }
         if (!shared){
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
-          a.href = url; a.download = 'relatorio-demandas.png';
+          a.href = url; a.download = fileName;
           document.body.appendChild(a); a.click(); a.remove();
           setTimeout(() => URL.revokeObjectURL(url), 4000);
-          alert('Imagem baixada. Abra o WhatsApp e anexe o arquivo "relatorio-demandas.png" na conversa.');
+          alert(`Imagem baixada. Abra o WhatsApp e anexe o arquivo "${fileName}" na conversa.`);
         }
       }, 'image/png');
     }catch(err){
@@ -1801,12 +1924,6 @@
     if (route.type === 'setor') renderSectorPage(route.sector);
     else if (route.type === 'relatorio-geral') renderRelatorioGeralPage();
     else renderHome();
-
-    // o botão de imagem só sabe montar o infográfico de demandas (painel
-    // geral / por setor); no Relatório Geral usamos apenas o texto de
-    // WhatsApp com o resumo de produtividade
-    const waImgBtnEl = document.getElementById('waImgBtn');
-    if (waImgBtnEl) waImgBtnEl.style.display = route.type === 'relatorio-geral' ? 'none' : '';
   }
 
   window.addEventListener('hashchange', renderCurrentRoute);
